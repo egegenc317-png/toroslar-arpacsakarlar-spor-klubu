@@ -307,14 +307,17 @@ export const prisma = {
       );
     },
     create: async ({ data }: any) => normalizeConversation(await db.conversation.create({ data: { id: data.id || randomUUID(), ...serializeConversationData(data) } })),
-    update: async ({ where, data }: any) => normalizeConversation(await db.conversation.update({ where, data: serializeConversationData(data) }))
+    update: async ({ where, data }: any) => normalizeConversation(await db.conversation.update({ where, data: serializeConversationData(data) })),
+    delete: async ({ where }: any) => normalizeConversation(await db.conversation.delete({ where }))
   },
     message: {
       findMany: async ({ where, include, orderBy, take }: any = {}) =>
         (await db.message.findMany({ where, include: { sender: Boolean(include?.sender) }, orderBy, take })).map(normalizeMessage),
     findUnique: async ({ where }: any) => normalizeMessage(await db.message.findUnique({ where })),
     create: async ({ data }: any) => normalizeMessage(await db.message.create({ data: { id: data.id || randomUUID(), ...data } })),
-    update: async ({ where, data }: any) => normalizeMessage(await db.message.update({ where, data }))
+    update: async ({ where, data }: any) => normalizeMessage(await db.message.update({ where, data })),
+    delete: async ({ where }: any) => normalizeMessage(await db.message.delete({ where })),
+    deleteMany: async ({ where }: any) => await db.message.deleteMany({ where })
   },
   report: {
     findMany: async ({ where, orderBy }: any = {}) => await db.report.findMany({ where, orderBy }),

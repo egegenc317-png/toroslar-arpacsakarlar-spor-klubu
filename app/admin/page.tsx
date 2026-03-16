@@ -599,6 +599,7 @@ export default async function AdminPage() {
               <Link className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 font-semibold text-zinc-900 transition hover:bg-amber-100" href="/admin/reports">Raporları Yönet</Link>
               <Link className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 font-semibold text-zinc-900 transition hover:bg-amber-100" href="/admin/users">Kullanıcıları Yönet</Link>
               <Link className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 font-semibold text-zinc-900 transition hover:bg-amber-100" href="/admin/listings">İlanları Yönet</Link>
+              <Link className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 font-semibold text-zinc-900 transition hover:bg-amber-100" href="/admin/chats">Sohbetleri Yönet</Link>
             </CardContent>
           </Card>
         </div>

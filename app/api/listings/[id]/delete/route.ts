@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
+import { isModeratorRole } from "@/lib/moderation";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const listing = await prisma.listing.findUnique({ where: { id: params.id } });
   if (!listing) return NextResponse.json({ error: "İlan bulunamadı" }, { status: 404 });
 
-  const canDelete = session.user.role === "ADMIN" || listing.userId === session.user.id;
+  const canDelete = isModeratorRole(session.user.role) || listing.userId === session.user.id;
   if (!canDelete) return NextResponse.json({ error: "Bu ilanı silme yetkin yok" }, { status: 403 });
 
   await prisma.listing.delete({ where: { id: params.id } });

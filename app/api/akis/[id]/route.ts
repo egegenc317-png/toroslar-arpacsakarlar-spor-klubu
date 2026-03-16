@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
+import { isModeratorRole } from "@/lib/moderation";
 import { prisma } from "@/lib/prisma";
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -17,7 +18,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: "Paylaşım bulunamadı." }, { status: 404 });
   }
 
-  if (post.userId !== session.user.id && session.user.role !== "ADMIN") {
+  if (post.userId !== session.user.id && !isModeratorRole(session.user.role)) {
     return NextResponse.json({ error: "Bu paylaşımı silme yetkin yok." }, { status: 403 });
   }
 
