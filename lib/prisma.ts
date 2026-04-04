@@ -193,11 +193,12 @@ export const prisma = {
     findFirst: async ({ where }: any) => normalizeUserWeeklyUsage(await db.userWeeklyUsage.findFirst({ where })),
     upsert: async ({ where, create, update }: any) => {
       const key = where.userId_weekKey;
+      const now = new Date();
       return normalizeUserWeeklyUsage(
         await db.userWeeklyUsage.upsert({
           where: { userId_weekKey: key },
-          create: { id: create.id || randomUUID(), ...create },
-          update: update?.seconds?.increment ? { seconds: { increment: update.seconds.increment }, updatedAt: new Date() } : update
+          create: { id: create.id || randomUUID(), createdAt: now, updatedAt: now, ...create },
+          update: update?.seconds?.increment ? { seconds: { increment: update.seconds.increment }, updatedAt: now } : { ...update, updatedAt: now }
         })
       );
     }
