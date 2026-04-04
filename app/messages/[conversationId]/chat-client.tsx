@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Camera, Check, CheckCheck, FileText, Paperclip, Pin, PinOff, SendHorizonal, Smile, Sparkles, X } from "lucide-react";
@@ -37,6 +37,19 @@ type PinnedMessage = {
 type MessagePayload = Message & {
   sender?: { id: string; name: string };
 };
+
+function buildSnapshotSignature(items: MessagePayload[], peerLastSeenAt: string | null) {
+  return JSON.stringify({
+    peerLastSeenAt: peerLastSeenAt || null,
+    items: items.map((item) => ({
+      id: item.id,
+      body: item.body,
+      senderId: item.senderId,
+      createdAt: item.createdAt,
+      pending: Boolean(item._localPending)
+    }))
+  });
+}
 
 function formatMessageTime(dateString: string) {
   return new Date(dateString).toLocaleTimeString("tr-TR", {
@@ -165,15 +178,31 @@ export function ChatClient({
   const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const emojiButtonRef = useRef<HTMLButtonElement | null>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const snapshotSignatureRef = useRef("");
+  const shouldStickToBottomRef = useRef(true);
   const notifyShellRefresh = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("mahalle:refresh-summary"));
     }
   };
 
+  const applySnapshot = useCallback((items: MessagePayload[], peerSeenAt: string | null) => {
+    const safeItems = Array.isArray(items) ? items : [];
+    const nextSignature = buildSnapshotSignature(safeItems, peerSeenAt);
+    if (snapshotSignatureRef.current === nextSignature) return;
+
+    snapshotSignatureRef.current = nextSignature;
+    startTransition(() => {
+      setMessages(safeItems);
+      setPeerLastSeenAt(peerSeenAt);
+      setError(null);
+    });
+  }, []);
+
   const replaceOptimisticMessage = useCallback((optimisticId: string, nextMessage: MessagePayload) => {
-    setMessages((prev) =>
-      prev.map((message) =>
+    let nextMessages: Message[] = [];
+    setMessages((prev) => {
+      nextMessages = prev.map((message) =>
         message.id === optimisticId
           ? {
               id: nextMessage.id,
@@ -183,9 +212,11 @@ export function ChatClient({
               sender: nextMessage.sender || { id: nextMessage.senderId, name: "Sen" }
             }
           : message
-      )
-    );
-  }, []);
+      );
+      return nextMessages;
+    });
+    snapshotSignatureRef.current = buildSnapshotSignature(nextMessages, peerLastSeenAt);
+  }, [peerLastSeenAt]);
 
   const mentionQuery = useMemo(() => {
     const match = body.match(/(?:^|\s)@([a-zA-Z0-9_çğıöşüÇĞİÖŞÜ]*)$/);
@@ -235,13 +266,14 @@ export function ChatClient({
         return;
       }
       const data = await res.json();
-      setMessages(Array.isArray(data.items) ? data.items : []);
-      setPeerLastSeenAt(typeof data.peerLastSeenAt === "string" ? data.peerLastSeenAt : null);
-      setError(null);
+      applySnapshot(
+        Array.isArray(data.items) ? data.items : [],
+        typeof data.peerLastSeenAt === "string" ? data.peerLastSeenAt : null
+      );
     } catch {
       setError("Bağlantı hatası olustu. Internetini kontrol et.");
     }
-  }, [conversationId, router]);
+  }, [applySnapshot, conversationId, router]);
 
   useEffect(() => {
     let eventSource: EventSource | null = null;
@@ -266,9 +298,7 @@ export function ChatClient({
           const data = JSON.parse((event as MessageEvent).data);
           if (cancelled) return;
           if (Array.isArray(data?.items)) {
-            setMessages(data.items);
-            setPeerLastSeenAt(typeof data?.peerLastSeenAt === "string" ? data.peerLastSeenAt : null);
-            setError(null);
+            applySnapshot(data.items, typeof data?.peerLastSeenAt === "string" ? data.peerLastSeenAt : null);
           }
         } catch {
           // ignore malformed SSE payloads
@@ -297,12 +327,27 @@ export function ChatClient({
       eventSource?.close();
       if (fallbackTimer) window.clearInterval(fallbackTimer);
     };
-  }, [conversationId, fetchMessages]);
+  }, [applySnapshot, conversationId, fetchMessages]);
 
   useEffect(() => {
-    if (!scrollRef.current) return;
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages.length]);
+    const container = scrollRef.current;
+    if (!container || !shouldStickToBottomRef.current) return;
+    container.scrollTop = container.scrollHeight;
+  }, [messages]);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const updateStickyState = () => {
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      shouldStickToBottomRef.current = distanceFromBottom < 96;
+    };
+
+    updateStickyState();
+    container.addEventListener("scroll", updateStickyState, { passive: true });
+    return () => container.removeEventListener("scroll", updateStickyState);
+  }, []);
 
   const stopCamera = useCallback(() => {
     if (mediaStreamRef.current) {
@@ -355,6 +400,7 @@ export function ChatClient({
       _localPending: true
     };
 
+    shouldStickToBottomRef.current = true;
     setMessages((prev) => [...prev, optimisticMessage]);
     setError(null);
     setEmojiOpen(false);
@@ -429,6 +475,7 @@ export function ChatClient({
       _localPreviewUrl: localPreviewUrl
     };
 
+    shouldStickToBottomRef.current = true;
     setMessages((prev) => [...prev, optimisticMessage]);
     setError(null);
     setSending(true);
