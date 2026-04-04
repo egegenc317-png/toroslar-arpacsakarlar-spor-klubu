@@ -205,6 +205,7 @@ export function ChatClient({
   const [pinningId, setPinningId] = useState<string | null>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [viewportSettling, setViewportSettling] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -217,6 +218,7 @@ export function ChatClient({
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const snapshotSignatureRef = useRef("");
   const shouldStickToBottomRef = useRef(true);
+  const viewportSettleTimerRef = useRef<number | null>(null);
   const notifyShellRefresh = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("mahalle:refresh-summary"));
@@ -418,6 +420,14 @@ export function ChatClient({
       const nextKeyboardOpen = nextInset > 120;
       setKeyboardInset((prev) => (prev === nextInset ? prev : nextInset));
       setKeyboardOpen((prev) => (prev === nextKeyboardOpen ? prev : nextKeyboardOpen));
+      setViewportSettling(true);
+
+      if (viewportSettleTimerRef.current) {
+        window.clearTimeout(viewportSettleTimerRef.current);
+      }
+      viewportSettleTimerRef.current = window.setTimeout(() => {
+        setViewportSettling(false);
+      }, 180);
 
       if (nextKeyboardOpen) {
         shouldStickToBottomRef.current = true;
@@ -436,6 +446,9 @@ export function ChatClient({
     window.addEventListener("orientationchange", updateViewportInsets);
 
     return () => {
+      if (viewportSettleTimerRef.current) {
+        window.clearTimeout(viewportSettleTimerRef.current);
+      }
       visualViewport.removeEventListener("resize", updateViewportInsets);
       visualViewport.removeEventListener("scroll", updateViewportInsets);
       window.removeEventListener("orientationchange", updateViewportInsets);
@@ -759,7 +772,14 @@ export function ChatClient({
         <div
           ref={scrollRef}
           className="relative z-10 max-h-[64vh] space-y-1 overflow-y-auto rounded-[18px] bg-white/35 p-1 sm:max-h-[62vh] sm:space-y-1.5 sm:rounded-2xl sm:p-2.5"
-          style={keyboardOpen ? { maxHeight: `calc(100svh - ${Math.min(320, keyboardInset + 220)}px)` } : undefined}
+          style={
+            keyboardOpen
+              ? {
+                  maxHeight: `calc(100svh - ${Math.min(320, keyboardInset + 220)}px)`,
+                  paddingBottom: `${Math.min(28, Math.max(10, keyboardInset * 0.08))}px`
+                }
+              : undefined
+          }
         >
           {messages.length === 0 ? (
             <p className="rounded-[18px] border border-dashed border-amber-200 bg-white/95 px-3 py-6 text-center text-sm text-zinc-500 sm:rounded-2xl sm:py-7">{emptyHint}</p>
@@ -895,7 +915,16 @@ export function ChatClient({
 
       <div
         className="sticky bottom-1 z-30 pb-[env(safe-area-inset-bottom)]"
-        style={keyboardInset ? { bottom: `${keyboardInset + 4}px` } : undefined}
+        style={
+          keyboardInset
+            ? {
+                bottom: `${keyboardInset + 4}px`,
+                transition: viewportSettling ? "none" : "bottom 180ms ease-out, transform 180ms ease-out"
+              }
+            : {
+                transition: "bottom 180ms ease-out, transform 180ms ease-out"
+              }
+        }
       >
         {mentionOpen ? (
           <div className="mb-1.5 overflow-hidden rounded-[18px] border border-amber-200 bg-white/95 shadow-xl shadow-amber-100/60 backdrop-blur sm:mb-2 sm:rounded-2xl">
@@ -944,7 +973,14 @@ export function ChatClient({
           </div>
         ) : null}
 
-        <form onSubmit={send} className="flex items-center gap-0.5 rounded-[18px] border border-amber-200 bg-white/95 p-1 shadow-lg shadow-amber-100/60 backdrop-blur sm:gap-1.5 sm:rounded-2xl sm:p-2">
+        <form
+          onSubmit={send}
+          className="flex items-center gap-0.5 rounded-[18px] border border-amber-200 bg-white/95 p-1 shadow-lg shadow-amber-100/60 backdrop-blur sm:gap-1.5 sm:rounded-2xl sm:p-2"
+          style={{
+            transform: keyboardOpen ? "translateY(0)" : "translateY(0)",
+            transition: viewportSettling ? "none" : "box-shadow 180ms ease-out, transform 180ms ease-out"
+          }}
+        >
         <input
           ref={fileInputRef}
           type="file"
