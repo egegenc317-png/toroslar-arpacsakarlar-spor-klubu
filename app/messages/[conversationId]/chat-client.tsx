@@ -169,6 +169,12 @@ function buildAudioWaveBars(durationSeconds?: number | null) {
   return Array.from({ length: total }, (_, index) => 10 + ((index * 7 + total * 3) % 18));
 }
 
+function getNextPlaybackRate(currentRate?: number) {
+  if (currentRate === 1) return 1.5;
+  if (currentRate === 1.5) return 2;
+  return 1;
+}
+
 function parseSystemMessage(body: string) {
   if (!body.startsWith(SYSTEM_MESSAGE_PREFIX)) return null;
   return body.slice(SYSTEM_MESSAGE_PREFIX.length).trim();
@@ -226,6 +232,8 @@ export function ChatClient({
   const [viewportSettling, setViewportSettling] = useState(false);
   const [recordingAudio, setRecordingAudio] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [audioPlaybackRates, setAudioPlaybackRates] = useState<Record<string, number>>({});
+  const [listenedAudioIds, setListenedAudioIds] = useState<Record<string, boolean>>({});
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -243,6 +251,7 @@ export function ChatClient({
   const audioStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioTimerRef = useRef<number | null>(null);
+  const audioElementRefs = useRef<Record<string, HTMLAudioElement | null>>({});
   const notifyShellRefresh = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("mahalle:refresh-summary"));
@@ -838,6 +847,17 @@ export function ChatClient({
     target.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  const toggleAudioPlaybackRate = (messageId: string) => {
+    setAudioPlaybackRates((prev) => {
+      const nextRate = getNextPlaybackRate(prev[messageId]);
+      const audioElement = audioElementRefs.current[messageId];
+      if (audioElement) {
+        audioElement.playbackRate = nextRate;
+      }
+      return { ...prev, [messageId]: nextRate };
+    });
+  };
+
   return (
     <div className="space-y-1 sm:space-y-2">
       <div className="relative overflow-hidden rounded-[18px] border border-amber-200 bg-[linear-gradient(170deg,#fff7ea_0%,#ffeaca_45%,#fff6e7_100%)] p-1.5 sm:rounded-[22px] sm:p-2.5">
@@ -900,6 +920,8 @@ export function ChatClient({
               const previewUrl = fileMeta?.url || m._localPreviewUrl || "";
               const isAudioAttachment = fileMeta ? isAudioFile(fileMeta.name, previewUrl) : false;
               const audioBars = isAudioAttachment ? buildAudioWaveBars(fileMeta?.durationSeconds) : [];
+              const playbackRate = audioPlaybackRates[m.id] || 1;
+              const listened = Boolean(listenedAudioIds[m.id]);
               if (systemText) {
                 return (
                   <div key={m.id} className="py-1">
@@ -966,9 +988,16 @@ export function ChatClient({
                             <Mic className={`h-4 w-4 ${mine ? "text-orange-100" : "text-orange-600"}`} />
                             <span className={`truncate text-xs font-medium ${mine ? "text-orange-50" : "text-zinc-700"}`}>{fileMeta.name}</span>
                           </div>
-                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${mine ? "bg-white/15 text-orange-50" : "bg-white text-zinc-600"}`}>
-                            {formatAudioDuration(fileMeta?.durationSeconds)}
-                          </span>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {listened ? (
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${mine ? "bg-white/15 text-orange-50" : "bg-white text-emerald-700"}`}>
+                                Dinlendi
+                              </span>
+                            ) : null}
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${mine ? "bg-white/15 text-orange-50" : "bg-white text-zinc-600"}`}>
+                              {formatAudioDuration(fileMeta?.durationSeconds)}
+                            </span>
+                          </div>
                         </div>
                         <div className="mb-2 flex h-8 items-end gap-1 overflow-hidden rounded-full px-1">
                           {audioBars.map((barHeight, index) => (
@@ -979,11 +1008,35 @@ export function ChatClient({
                             />
                           ))}
                         </div>
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Mic className={`h-4 w-4 ${mine ? "text-orange-100" : "text-orange-600"}`} />
+                            <span className={`text-[11px] font-semibold ${mine ? "text-orange-50" : "text-zinc-600"}`}>Ses mesajı</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => toggleAudioPlaybackRate(m.id)}
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${mine ? "bg-white/15 text-orange-50 hover:bg-white/20" : "bg-white text-zinc-700 hover:bg-amber-50"}`}
+                          >
+                            {playbackRate}x
+                          </button>
+                        </div>
                         <div className="flex items-center gap-2">
                           <Mic className={`h-4 w-4 ${mine ? "text-orange-100" : "text-orange-600"}`} />
-                          <span className={`text-[11px] font-semibold ${mine ? "text-orange-50" : "text-zinc-600"}`}>Ses mesajı</span>
+                          <span className={`text-[11px] ${mine ? "text-orange-50/90" : "text-zinc-500"}`}>Oynatma hizi secilebilir</span>
                         </div>
-                        <audio controls preload="none" className="h-10 w-full">
+                        <audio
+                          controls
+                          preload="none"
+                          className="h-10 w-full"
+                          ref={(node) => {
+                            audioElementRefs.current[m.id] = node;
+                            if (node) {
+                              node.playbackRate = playbackRate;
+                            }
+                          }}
+                          onEnded={() => setListenedAudioIds((prev) => ({ ...prev, [m.id]: true }))}
+                        >
                           <source src={previewUrl} />
                           Tarayıcın ses oynatmayı desteklemiyor.
                         </audio>
