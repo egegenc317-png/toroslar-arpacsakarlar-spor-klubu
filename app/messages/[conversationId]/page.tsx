@@ -10,45 +10,51 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChatClient } from "./chat-client";
 
+function getInitials(value?: string | null) {
+  const safe = (value || "K").trim();
+  return safe.slice(0, 1).toUpperCase() || "K";
+}
+
 export default async function ConversationPage({ params }: { params: { conversationId: string } }) {
   const session = await auth();
   if (!session) redirect("/auth/login");
 
-  const conversation = await prisma.conversation.findUnique({
-    where: { id: params.conversationId },
-    include: { listing: true }
-  });
+  try {
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: params.conversationId },
+      include: { listing: true }
+    });
 
-  const isGroup = conversation?.conversationType === "GROUP";
-  const canAccess =
-    conversation &&
-    (isGroup
-      ? (conversation.participantIds || []).includes(session.user.id)
-      : conversation.buyerId === session.user.id || conversation.sellerId === session.user.id);
+    const isGroup = conversation?.conversationType === "GROUP";
+    const canAccess =
+      conversation &&
+      (isGroup
+        ? (conversation.participantIds || []).includes(session.user.id)
+        : conversation.buyerId === session.user.id || conversation.sellerId === session.user.id);
 
-  if (!conversation || !canAccess) {
-    redirect("/messages");
-  }
+    if (!conversation || !canAccess) {
+      redirect("/messages");
+    }
 
-  const title = conversation.listing?.title || conversation.contextTitle || "Direkt Sohbet";
-  const peerId = isGroup ? "" : conversation.buyerId === session.user.id ? conversation.sellerId : conversation.buyerId;
-  const peer = peerId ? await prisma.user.findUnique({ where: { id: peerId } }) : null;
-  const peerName = isGroup ? conversation.groupName || "Grup Sohbeti" : peer?.name || "Kullanıcı";
-  const memberCount = isGroup ? (conversation.participantIds || []).length : 2;
-  const users = isGroup
-    ? ((await prisma.user.findMany()) as Array<{ id: string; name: string; username?: string | null }>)
-        .filter((user) => (conversation.participantIds || []).includes(user.id))
-    : [];
-  const canPin = Boolean(isGroup && (conversation.adminIds || []).includes(session.user.id));
-  const pinnedRaw = conversation.pinnedMessageId
-    ? await prisma.message.findUnique({ where: { id: conversation.pinnedMessageId } })
-    : null;
-  const pinnedSender = pinnedRaw ? await prisma.user.findUnique({ where: { id: pinnedRaw.senderId } }) : null;
-  const nowLabel = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-  const subtitle = isGroup ? conversation.groupDescription || `${memberCount} kişilik grup` : title;
+    const title = conversation.listing?.title || conversation.contextTitle || "Direkt Sohbet";
+    const peerId = isGroup ? "" : conversation.buyerId === session.user.id ? conversation.sellerId : conversation.buyerId;
+    const peer = peerId ? await prisma.user.findUnique({ where: { id: peerId } }) : null;
+    const peerName = isGroup ? conversation.groupName || "Grup Sohbeti" : peer?.name || "Kullanıcı";
+    const memberCount = isGroup ? (conversation.participantIds || []).length : 2;
+    const users = isGroup
+      ? ((await prisma.user.findMany()) as Array<{ id: string; name: string; username?: string | null }>)
+          .filter((user) => (conversation.participantIds || []).includes(user.id))
+      : [];
+    const canPin = Boolean(isGroup && (conversation.adminIds || []).includes(session.user.id));
+    const pinnedRaw = conversation.pinnedMessageId
+      ? await prisma.message.findUnique({ where: { id: conversation.pinnedMessageId } })
+      : null;
+    const pinnedSender = pinnedRaw ? await prisma.user.findUnique({ where: { id: pinnedRaw.senderId } }) : null;
+    const nowLabel = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    const subtitle = isGroup ? conversation.groupDescription || `${memberCount} kişilik grup` : title;
 
-  return (
-    <Card className="overflow-visible border-amber-200/80 bg-[linear-gradient(180deg,#fff7eb_0%,#fff3e5_18%,#ffffff_100%)] shadow-[0_24px_70px_rgba(153,93,37,0.18)]">
+    return (
+      <Card className="overflow-visible border-amber-200/80 bg-[linear-gradient(180deg,#fff7eb_0%,#fff3e5_18%,#ffffff_100%)] shadow-[0_24px_70px_rgba(153,93,37,0.18)]">
       <CardHeader className="relative overflow-hidden border-b border-amber-200/80 bg-[linear-gradient(115deg,#ffedcf_0%,#ffc978_38%,#ffb56a_74%,#ffddb5_100%)] px-3 py-3 md:px-4 md:py-4">
         <div className="pointer-events-none absolute inset-0 opacity-[0.13]" style={{ backgroundImage: "radial-gradient(#9a5b25 0.8px, transparent 0.8px)", backgroundSize: "12px 12px" }} />
         <div className="pointer-events-none absolute -right-10 top-6 h-24 w-24 rounded-full bg-white/20 blur-2xl" />
@@ -76,7 +82,7 @@ export default async function ConversationPage({ params }: { params: { conversat
                 aria-label={`${peerName} profiline git`}
                 className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 text-lg font-bold text-white shadow-[0_12px_28px_rgba(234,88,12,0.24)] sm:h-16 sm:w-16 sm:rounded-[22px]"
               >
-                {peerName.slice(0, 1).toUpperCase()}
+                {getInitials(peerName)}
               </Link>
             )}
 
@@ -155,7 +161,10 @@ export default async function ConversationPage({ params }: { params: { conversat
           mentionUsers={users.map((user) => ({ id: user.id, name: user.name, username: user.username || null }))}
         />
       </CardContent>
-    </Card>
-  );
+      </Card>
+    );
+  } catch {
+    redirect("/messages");
+  }
 }
 
