@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { CheckCheck, MessageCircleMore, Plus, Search, Sparkles, UsersRound } from "lucide-react";
+import { CheckCheck, MessageCircleMore, Pin, Plus, Search, Sparkles, UsersRound } from "lucide-react";
 
 import { MessagesUserSearch } from "@/components/messages-user-search";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,6 +16,7 @@ type ConversationListItem = {
   lastActivityAt?: string;
   deliveryStatus: "delivered" | "seen" | null;
   isGroup?: boolean;
+  isPinned?: boolean;
   image?: string | null;
   hasMention?: boolean;
 };
@@ -45,7 +46,10 @@ export function MessagesHub({
   currentUserId: string;
   conversations: ConversationListItem[];
 }) {
-  const groupedConversations = conversations.reduce(
+  const pinnedConversations = conversations.filter((conversation) => conversation.isPinned);
+  const regularConversations = conversations.filter((conversation) => !conversation.isPinned);
+
+  const groupedConversations = regularConversations.reduce(
     (groups, conversation) => {
       const label = getConversationGroupLabel(conversation.lastActivityAt);
       const existing = groups.find((group) => group.label === label);
@@ -100,6 +104,53 @@ export function MessagesHub({
             <div className="rounded-2xl border border-dashed border-amber-200 bg-white/95 px-4 py-7 text-center shadow-sm">
               <Sparkles className="mx-auto h-5 w-5 text-amber-600" />
               <p className="mt-2 text-sm text-zinc-500">Henüz konuşma yok.</p>
+            </div>
+          ) : null}
+
+          {pinnedConversations.length > 0 ? (
+            <div className="space-y-2">
+              <div className="sticky top-[5.25rem] z-10 rounded-full border border-amber-200/80 bg-white/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-800 backdrop-blur">
+                <span className="inline-flex items-center gap-1.5">
+                  <Pin className="h-3.5 w-3.5" />
+                  Sabitlenmis Sohbetler
+                </span>
+              </div>
+              {pinnedConversations.map((c) => (
+                <Link key={c.id} href={`/messages/${c.id}`} className="block rounded-[18px] border border-amber-300 bg-[linear-gradient(135deg,#fff8ee_0%,#fff1d8_100%)] px-2.5 py-2.5 transition hover:bg-amber-50/40 sm:rounded-xl sm:px-3 sm:py-3">
+                  <div className="flex items-start gap-2.5">
+                    {c.image ? (
+                      <Image src={c.image} alt={c.peer} width={44} height={44} className="h-10 w-10 shrink-0 rounded-full object-cover sm:h-11 sm:w-11" />
+                    ) : (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-sm font-semibold text-white sm:h-11 sm:w-11">
+                        {c.isGroup ? <UsersRound className="h-5 w-5" /> : c.peer.slice(0, 1).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-zinc-900 sm:text-[15px]">{c.peer}</p>
+                          <span className="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+                            sabit
+                          </span>
+                          {c.hasMention ? (
+                            <span className="inline-flex shrink-0 items-center rounded-full bg-gradient-to-r from-red-500 to-orange-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                              @sen
+                            </span>
+                          ) : null}
+                        </div>
+                        <span className="text-[11px] text-zinc-500">{c.time}</span>
+                      </div>
+                      <p className="truncate text-[11px] text-zinc-500 sm:text-xs">{c.title}</p>
+                      <p className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-zinc-700 sm:mt-1 sm:text-sm">
+                        {c.deliveryStatus ? (
+                          <CheckCheck className={`h-3.5 w-3.5 shrink-0 ${c.deliveryStatus === "seen" ? "text-orange-700" : "text-zinc-400"}`} />
+                        ) : null}
+                        <span className="truncate">{c.preview}</span>
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
           ) : null}
 

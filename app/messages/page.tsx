@@ -170,6 +170,7 @@ export default async function MessagesPage() {
             lastActivityAt: lastCreatedAt ? lastCreatedAt.toISOString() : new Date(c.createdAt).toISOString(),
             deliveryStatus,
             isGroup,
+            isPinned: Boolean(c.pinnedMessageId),
             image: c.groupImage || null,
             hasMention,
             sortDate: lastCreatedAt ? lastCreatedAt.getTime() : new Date(c.createdAt).getTime()
