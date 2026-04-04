@@ -203,12 +203,15 @@ export function ChatClient({
   const [mentionOpen, setMentionOpen] = useState(false);
   const [pinnedMessage, setPinnedMessage] = useState<PinnedMessage | null>(initialPinnedMessage);
   const [pinningId, setPinningId] = useState<string | null>(null);
+  const [keyboardInset, setKeyboardInset] = useState(0);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const textInputRef = useRef<HTMLInputElement | null>(null);
   const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const emojiButtonRef = useRef<HTMLButtonElement | null>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -404,6 +407,41 @@ export function ChatClient({
     return () => container.removeEventListener("scroll", updateStickyState);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) return;
+
+    const updateViewportInsets = () => {
+      const nextInset = Math.max(0, Math.round(window.innerHeight - visualViewport.height - visualViewport.offsetTop));
+      const nextKeyboardOpen = nextInset > 120;
+      setKeyboardInset((prev) => (prev === nextInset ? prev : nextInset));
+      setKeyboardOpen((prev) => (prev === nextKeyboardOpen ? prev : nextKeyboardOpen));
+
+      if (nextKeyboardOpen) {
+        shouldStickToBottomRef.current = true;
+        requestAnimationFrame(() => {
+          const container = scrollRef.current;
+          if (container) {
+            container.scrollTop = container.scrollHeight;
+          }
+        });
+      }
+    };
+
+    updateViewportInsets();
+    visualViewport.addEventListener("resize", updateViewportInsets);
+    visualViewport.addEventListener("scroll", updateViewportInsets);
+    window.addEventListener("orientationchange", updateViewportInsets);
+
+    return () => {
+      visualViewport.removeEventListener("resize", updateViewportInsets);
+      visualViewport.removeEventListener("scroll", updateViewportInsets);
+      window.removeEventListener("orientationchange", updateViewportInsets);
+    };
+  }, []);
+
   const stopCamera = useCallback(() => {
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -440,6 +478,17 @@ export function ChatClient({
       document.removeEventListener("touchstart", onPointerDown);
     };
   }, [emojiOpen]);
+
+  const focusComposer = useCallback(() => {
+    shouldStickToBottomRef.current = true;
+    window.setTimeout(() => {
+      textInputRef.current?.focus();
+      const container = scrollRef.current;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }, 80);
+  }, []);
 
   const sendTextMessage = useCallback(async (text: string) => {
     const trimmedBody = text.trim();
@@ -707,7 +756,11 @@ export function ChatClient({
           </div>
         ) : null}
 
-        <div ref={scrollRef} className="relative z-10 max-h-[64vh] space-y-1 overflow-y-auto rounded-[18px] bg-white/35 p-1 sm:max-h-[62vh] sm:space-y-1.5 sm:rounded-2xl sm:p-2.5">
+        <div
+          ref={scrollRef}
+          className="relative z-10 max-h-[64vh] space-y-1 overflow-y-auto rounded-[18px] bg-white/35 p-1 sm:max-h-[62vh] sm:space-y-1.5 sm:rounded-2xl sm:p-2.5"
+          style={keyboardOpen ? { maxHeight: `calc(100svh - ${Math.min(320, keyboardInset + 220)}px)` } : undefined}
+        >
           {messages.length === 0 ? (
             <p className="rounded-[18px] border border-dashed border-amber-200 bg-white/95 px-3 py-6 text-center text-sm text-zinc-500 sm:rounded-2xl sm:py-7">{emptyHint}</p>
           ) : (
@@ -840,7 +893,10 @@ export function ChatClient({
 
       {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
 
-      <div className="sticky bottom-1 z-30">
+      <div
+        className="sticky bottom-1 z-30 pb-[env(safe-area-inset-bottom)]"
+        style={keyboardInset ? { bottom: `${keyboardInset + 4}px` } : undefined}
+      >
         {mentionOpen ? (
           <div className="mb-1.5 overflow-hidden rounded-[18px] border border-amber-200 bg-white/95 shadow-xl shadow-amber-100/60 backdrop-blur sm:mb-2 sm:rounded-2xl">
             {mentionCandidates.map((user) => (
@@ -924,8 +980,10 @@ export function ChatClient({
         </div>
 
         <Input
+          ref={textInputRef}
           value={body}
           onChange={(e) => setBody(e.target.value)}
+          onFocus={focusComposer}
           placeholder={`${peerName} için bir mesaj yaz...`}
           className="h-9 min-w-0 rounded-full border-amber-200 bg-white px-2.5 text-[13px] focus-visible:ring-orange-300 sm:h-10 sm:px-3 sm:text-sm"
         />
