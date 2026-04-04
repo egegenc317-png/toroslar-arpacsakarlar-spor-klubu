@@ -167,6 +167,7 @@ export default async function MessagesPage() {
             title,
             preview: formatPreview(preview),
             time,
+            lastActivityAt: lastCreatedAt ? lastCreatedAt.toISOString() : new Date(c.createdAt).toISOString(),
             deliveryStatus,
             isGroup,
             image: c.groupImage || null,

@@ -13,11 +13,30 @@ type ConversationListItem = {
   title: string;
   preview: string;
   time: string;
+  lastActivityAt?: string;
   deliveryStatus: "delivered" | "seen" | null;
   isGroup?: boolean;
   image?: string | null;
   hasMention?: boolean;
 };
+
+function getConversationGroupLabel(value?: string) {
+  if (!value) return "Daha Eski";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Daha Eski";
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (target.getTime() === today.getTime()) return "Bugün";
+  if (target.getTime() === yesterday.getTime()) return "Dün";
+
+  return date.toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+}
 
 export function MessagesHub({
   currentUserId,
@@ -26,6 +45,20 @@ export function MessagesHub({
   currentUserId: string;
   conversations: ConversationListItem[];
 }) {
+  const groupedConversations = conversations.reduce(
+    (groups, conversation) => {
+      const label = getConversationGroupLabel(conversation.lastActivityAt);
+      const existing = groups.find((group) => group.label === label);
+      if (existing) {
+        existing.items.push(conversation);
+      } else {
+        groups.push({ label, items: [conversation] });
+      }
+      return groups;
+    },
+    [] as Array<{ label: string; items: ConversationListItem[] }>
+  );
+
   return (
     <section className="relative overflow-hidden rounded-[22px] border border-amber-200 bg-[linear-gradient(135deg,#fff4df_0%,#ffe6bd_36%,#fff8ec_66%,#ffffff_100%)] shadow-[0_24px_70px_rgba(153,93,37,0.18)] sm:rounded-[30px]">
       <div className="pointer-events-none absolute inset-0 opacity-[0.14]" style={{ backgroundImage: "radial-gradient(#c48f59 0.8px, transparent 0.8px)", backgroundSize: "12px 12px" }} />
@@ -70,38 +103,45 @@ export function MessagesHub({
             </div>
           ) : null}
 
-          {conversations.map((c) => (
-            <Link key={c.id} href={`/messages/${c.id}`} className="block rounded-[18px] border border-amber-200 bg-white/95 px-2.5 py-2.5 transition hover:bg-amber-50/40 sm:rounded-xl sm:px-3 sm:py-3">
-              <div className="flex items-start gap-2.5">
-                {c.image ? (
-                  <Image src={c.image} alt={c.peer} width={44} height={44} className="h-10 w-10 shrink-0 rounded-full object-cover sm:h-11 sm:w-11" />
-                ) : (
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-sm font-semibold text-white sm:h-11 sm:w-11">
-                    {c.isGroup ? <UsersRound className="h-5 w-5" /> : c.peer.slice(0, 1).toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <p className="truncate text-sm font-semibold text-zinc-900 sm:text-[15px]">{c.peer}</p>
-                      {c.hasMention ? (
-                        <span className="inline-flex shrink-0 items-center rounded-full bg-gradient-to-r from-red-500 to-orange-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
-                          @sen
-                        </span>
-                      ) : null}
-                    </div>
-                    <span className="text-[11px] text-zinc-500">{c.time}</span>
-                  </div>
-                  <p className="truncate text-[11px] text-zinc-500 sm:text-xs">{c.title}</p>
-                  <p className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-zinc-700 sm:mt-1 sm:text-sm">
-                    {c.deliveryStatus ? (
-                      <CheckCheck className={`h-3.5 w-3.5 shrink-0 ${c.deliveryStatus === "seen" ? "text-orange-700" : "text-zinc-400"}`} />
-                    ) : null}
-                    <span className="truncate">{c.preview}</span>
-                  </p>
-                </div>
+          {groupedConversations.map((group) => (
+            <div key={group.label} className="space-y-2">
+              <div className="sticky top-[5.25rem] z-10 rounded-full border border-amber-200/80 bg-white/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-800 backdrop-blur">
+                {group.label}
               </div>
-            </Link>
+              {group.items.map((c) => (
+                <Link key={c.id} href={`/messages/${c.id}`} className="block rounded-[18px] border border-amber-200 bg-white/95 px-2.5 py-2.5 transition hover:bg-amber-50/40 sm:rounded-xl sm:px-3 sm:py-3">
+                  <div className="flex items-start gap-2.5">
+                    {c.image ? (
+                      <Image src={c.image} alt={c.peer} width={44} height={44} className="h-10 w-10 shrink-0 rounded-full object-cover sm:h-11 sm:w-11" />
+                    ) : (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-sm font-semibold text-white sm:h-11 sm:w-11">
+                        {c.isGroup ? <UsersRound className="h-5 w-5" /> : c.peer.slice(0, 1).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-zinc-900 sm:text-[15px]">{c.peer}</p>
+                          {c.hasMention ? (
+                            <span className="inline-flex shrink-0 items-center rounded-full bg-gradient-to-r from-red-500 to-orange-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                              @sen
+                            </span>
+                          ) : null}
+                        </div>
+                        <span className="text-[11px] text-zinc-500">{c.time}</span>
+                      </div>
+                      <p className="truncate text-[11px] text-zinc-500 sm:text-xs">{c.title}</p>
+                      <p className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-zinc-700 sm:mt-1 sm:text-sm">
+                        {c.deliveryStatus ? (
+                          <CheckCheck className={`h-3.5 w-3.5 shrink-0 ${c.deliveryStatus === "seen" ? "text-orange-700" : "text-zinc-400"}`} />
+                        ) : null}
+                        <span className="truncate">{c.preview}</span>
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
           ))}
         </TabsContent>
 
