@@ -38,6 +38,12 @@ type MessagePayload = Message & {
   sender?: { id: string; name: string };
 };
 
+type MessagesStreamPayload = {
+  mode?: "reset" | "patch";
+  items?: MessagePayload[];
+  peerLastSeenAt?: string | null;
+};
+
 function buildSnapshotSignature(items: MessagePayload[], peerLastSeenAt: string | null) {
   return JSON.stringify({
     peerLastSeenAt: peerLastSeenAt || null,
@@ -49,6 +55,34 @@ function buildSnapshotSignature(items: MessagePayload[], peerLastSeenAt: string 
       pending: Boolean(item._localPending)
     }))
   });
+}
+
+function mergePatchedMessages(current: Message[], incoming: MessagePayload[]) {
+  if (!incoming.length) return current;
+
+  const next = [...current];
+  const indexById = new Map(next.map((item, index) => [item.id, index]));
+
+  for (const item of incoming) {
+    const normalized: Message = {
+      id: item.id,
+      body: item.body,
+      senderId: item.senderId,
+      createdAt: item.createdAt,
+      sender: item.sender || { id: item.senderId, name: "Sen" }
+    };
+
+    const existingIndex = indexById.get(item.id);
+    if (typeof existingIndex === "number") {
+      next[existingIndex] = normalized;
+      continue;
+    }
+
+    indexById.set(item.id, next.length);
+    next.push(normalized);
+  }
+
+  return next;
 }
 
 function formatMessageTime(dateString: string) {
@@ -199,6 +233,23 @@ export function ChatClient({
     });
   }, []);
 
+  const applyPatchedSnapshot = useCallback((items: MessagePayload[], peerSeenAt: string | null) => {
+    setMessages((prev) => {
+      const nextMessages = mergePatchedMessages(prev, items);
+      const nextSignature = buildSnapshotSignature(nextMessages, peerSeenAt);
+      if (snapshotSignatureRef.current === nextSignature) {
+        return prev;
+      }
+
+      snapshotSignatureRef.current = nextSignature;
+      startTransition(() => {
+        setPeerLastSeenAt(peerSeenAt);
+        setError(null);
+      });
+      return nextMessages;
+    });
+  }, []);
+
   const replaceOptimisticMessage = useCallback((optimisticId: string, nextMessage: MessagePayload) => {
     let nextMessages: Message[] = [];
     setMessages((prev) => {
@@ -295,8 +346,12 @@ export function ChatClient({
       eventSource = new EventSource(`/api/conversations/${conversationId}/messages/stream`);
       eventSource.addEventListener("messages", (event) => {
         try {
-          const data = JSON.parse((event as MessageEvent).data);
+          const data = JSON.parse((event as MessageEvent).data) as MessagesStreamPayload;
           if (cancelled) return;
+          if (data?.mode === "patch" && Array.isArray(data?.items)) {
+            applyPatchedSnapshot(data.items, typeof data?.peerLastSeenAt === "string" ? data.peerLastSeenAt : null);
+            return;
+          }
           if (Array.isArray(data?.items)) {
             applySnapshot(data.items, typeof data?.peerLastSeenAt === "string" ? data.peerLastSeenAt : null);
           }
@@ -327,7 +382,7 @@ export function ChatClient({
       eventSource?.close();
       if (fallbackTimer) window.clearInterval(fallbackTimer);
     };
-  }, [applySnapshot, conversationId, fetchMessages]);
+  }, [applyPatchedSnapshot, applySnapshot, conversationId, fetchMessages]);
 
   useEffect(() => {
     const container = scrollRef.current;
