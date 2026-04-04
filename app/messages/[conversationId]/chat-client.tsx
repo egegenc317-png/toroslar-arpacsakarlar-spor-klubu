@@ -3,7 +3,7 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Camera, Check, CheckCheck, FileText, Paperclip, Pin, PinOff, SendHorizonal, Smile, Sparkles, X } from "lucide-react";
+import { Camera, Check, CheckCheck, FileText, Mic, Paperclip, Pin, PinOff, SendHorizonal, Smile, Sparkles, Square, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -151,6 +151,10 @@ function isImageUrl(url: string) {
   return /\.(png|jpe?g|webp|gif|avif)$/i.test(url);
 }
 
+function isAudioFile(name: string, url: string) {
+  return /\.(mp3|wav|ogg|m4a|aac|webm)(\?|$)/i.test(`${name} ${url}`);
+}
+
 function parseSystemMessage(body: string) {
   if (!body.startsWith(SYSTEM_MESSAGE_PREFIX)) return null;
   return body.slice(SYSTEM_MESSAGE_PREFIX.length).trim();
@@ -206,6 +210,8 @@ export function ChatClient({
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [viewportSettling, setViewportSettling] = useState(false);
+  const [recordingAudio, setRecordingAudio] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -219,6 +225,10 @@ export function ChatClient({
   const snapshotSignatureRef = useRef("");
   const shouldStickToBottomRef = useRef(true);
   const viewportSettleTimerRef = useRef<number | null>(null);
+  const audioRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioTimerRef = useRef<number | null>(null);
   const notifyShellRefresh = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("mahalle:refresh-summary"));
@@ -469,6 +479,15 @@ export function ChatClient({
 
   useEffect(() => {
     return () => {
+      if (audioTimerRef.current) {
+        window.clearInterval(audioTimerRef.current);
+      }
+      if (audioRecorderRef.current && audioRecorderRef.current.state !== "inactive") {
+        audioRecorderRef.current.stop();
+      }
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       }
@@ -642,6 +661,78 @@ export function ChatClient({
     }
   };
 
+  const startAudioRecording = async () => {
+    if (recordingAudio || sending || uploadingFile) return;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredMimeTypes = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
+      const supportedMimeType = preferredMimeTypes.find((mimeType) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mimeType));
+      const recorder = new MediaRecorder(stream, supportedMimeType ? { mimeType: supportedMimeType } : undefined);
+
+      audioStreamRef.current = stream;
+      audioRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+      setRecordingAudio(true);
+      setRecordingSeconds(0);
+      setError(null);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.start();
+      audioTimerRef.current = window.setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch {
+      setError("Mikrofon açılamadı. Tarayıcı iznini kontrol et.");
+    }
+  };
+
+  const stopAudioRecording = async (sendRecording: boolean) => {
+    const recorder = audioRecorderRef.current;
+
+    if (audioTimerRef.current) {
+      window.clearInterval(audioTimerRef.current);
+      audioTimerRef.current = null;
+    }
+
+    if (!recorder) {
+      setRecordingAudio(false);
+      setRecordingSeconds(0);
+      return;
+    }
+
+    const finalBlob = await new Promise<Blob | null>((resolve) => {
+      recorder.onstop = () => {
+        const mimeType = recorder.mimeType || "audio/webm";
+        const blob = audioChunksRef.current.length ? new Blob(audioChunksRef.current, { type: mimeType }) : null;
+        resolve(blob);
+      };
+      recorder.stop();
+    });
+
+    audioRecorderRef.current = null;
+    audioChunksRef.current = [];
+
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      audioStreamRef.current = null;
+    }
+
+    setRecordingAudio(false);
+    setRecordingSeconds(0);
+
+    if (!sendRecording || !finalBlob || finalBlob.size === 0) return;
+
+    const extension = finalBlob.type.includes("mp4") || finalBlob.type.includes("aac") ? "m4a" : finalBlob.type.includes("ogg") ? "ogg" : "webm";
+    const audioFile = new File([finalBlob], `ses-kaydi-${Date.now()}.${extension}`, { type: finalBlob.type || "audio/webm" });
+    await sendFile(audioFile, { viewOnce: false });
+  };
+
   const openCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -791,6 +882,7 @@ export function ChatClient({
               const fileMeta = parseFileMessage(m.body);
               const systemText = parseSystemMessage(m.body);
               const previewUrl = fileMeta?.url || m._localPreviewUrl || "";
+              const isAudioAttachment = fileMeta ? isAudioFile(fileMeta.name, previewUrl) : false;
               if (systemText) {
                 return (
                   <div key={m.id} className="py-1">
@@ -850,7 +942,18 @@ export function ChatClient({
                         Tek bakmalık Fotoğraf
                       </button>
                     ) :
-                    previewUrl && isImageUrl(previewUrl) ? (
+                    isAudioAttachment && previewUrl ? (
+                      <div className={`rounded-[14px] border px-2.5 py-2.5 sm:rounded-xl sm:px-3 sm:py-3 ${mine ? "border-orange-200/50 bg-white/15" : "border-amber-200 bg-amber-50/40"}`}>
+                        <div className="mb-2 flex items-center gap-2">
+                          <Mic className={`h-4 w-4 ${mine ? "text-orange-100" : "text-orange-600"}`} />
+                          <span className={`truncate text-xs font-medium ${mine ? "text-orange-50" : "text-zinc-700"}`}>{fileMeta.name}</span>
+                        </div>
+                        <audio controls preload="none" className="h-10 w-full">
+                          <source src={previewUrl} />
+                          Tarayıcın ses oynatmayı desteklemiyor.
+                        </audio>
+                      </div>
+                    ) : previewUrl && isImageUrl(previewUrl) ? (
                       <button
                         type="button"
                         onClick={async () => {
@@ -1026,6 +1129,15 @@ export function ChatClient({
 
         <button
           type="button"
+          onClick={() => void (recordingAudio ? stopAudioRecording(true) : startAudioRecording())}
+          disabled={sending || uploadingFile}
+          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition disabled:opacity-50 sm:h-9 sm:w-9 ${recordingAudio ? "bg-red-500 text-white hover:bg-red-600" : "text-zinc-500 hover:bg-amber-50 hover:text-amber-700"}`}
+          aria-label={recordingAudio ? "Ses kaydını bitir ve gönder" : "Ses kaydı başlat"}
+        >
+          {recordingAudio ? <Square className="h-4 w-4" /> : <Mic className="h-4.5 w-4.5" />}
+        </button>
+        <button
+          type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={sending || uploadingFile}
           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50 sm:h-9 sm:w-9"
@@ -1047,6 +1159,21 @@ export function ChatClient({
           <SendHorizonal className="h-4 w-4" />
         </Button>
       </form>
+      {recordingAudio ? (
+        <div className="mt-1 flex items-center justify-between rounded-2xl border border-red-200 bg-red-50/95 px-3 py-2 text-xs text-red-700 shadow-sm">
+          <span className="inline-flex items-center gap-2 font-semibold">
+            <span className="h-2 w-2 rounded-full bg-red-500" />
+            Ses kaydı sürüyor • {Math.floor(recordingSeconds / 60).toString().padStart(2, "0")}:{(recordingSeconds % 60).toString().padStart(2, "0")}
+          </span>
+          <button
+            type="button"
+            onClick={() => void stopAudioRecording(false)}
+            className="rounded-full border border-red-200 bg-white px-2.5 py-1 font-semibold text-red-700 hover:bg-red-100"
+          >
+            İptal
+          </button>
+        </div>
+      ) : null}
       </div>
 
       {previewImage ? (
