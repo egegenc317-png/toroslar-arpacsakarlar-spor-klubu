@@ -234,6 +234,7 @@ export function ChatClient({
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingWaveBars, setRecordingWaveBars] = useState<number[]>(() => buildAudioWaveBars(12));
   const [pressRecordingMode, setPressRecordingMode] = useState(false);
+  const [recordingLocked, setRecordingLocked] = useState(false);
   const [audioPlaybackRates, setAudioPlaybackRates] = useState<Record<string, number>>({});
   const [listenedAudioIds, setListenedAudioIds] = useState<Record<string, boolean>>({});
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -259,6 +260,7 @@ export function ChatClient({
   const audioAnimationFrameRef = useRef<number | null>(null);
   const pressRecordingStartedRef = useRef(false);
   const suppressMicClickRef = useRef(false);
+  const pressStartYRef = useRef<number | null>(null);
   const notifyShellRefresh = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("mahalle:refresh-summary"));
@@ -808,7 +810,9 @@ export function ChatClient({
     setRecordingSeconds(0);
     setRecordingWaveBars(buildAudioWaveBars(12));
     setPressRecordingMode(false);
+    setRecordingLocked(false);
     pressRecordingStartedRef.current = false;
+    pressStartYRef.current = null;
 
     if (!sendRecording || !finalBlob || finalBlob.size === 0) return;
 
@@ -822,11 +826,17 @@ export function ChatClient({
     suppressMicClickRef.current = true;
     pressRecordingStartedRef.current = true;
     setPressRecordingMode(true);
+    setRecordingLocked(false);
     await startAudioRecording();
   };
 
   const finishPressRecording = async (sendRecording: boolean) => {
     if (!pressRecordingStartedRef.current) return;
+    if (recordingLocked) {
+      pressRecordingStartedRef.current = false;
+      pressStartYRef.current = null;
+      return;
+    }
     await stopAudioRecording(sendRecording);
   };
 
@@ -1299,7 +1309,17 @@ export function ChatClient({
           onPointerDown={(event) => {
             if (event.pointerType === "mouse" || event.pointerType === "touch" || event.pointerType === "pen") {
               event.preventDefault();
+              pressStartYRef.current = event.clientY;
+              event.currentTarget.setPointerCapture?.(event.pointerId);
               void beginPressRecording();
+            }
+          }}
+          onPointerMove={(event) => {
+            if (!pressRecordingStartedRef.current || recordingLocked) return;
+            const startY = pressStartYRef.current;
+            if (typeof startY !== "number") return;
+            if (startY - event.clientY > 56) {
+              setRecordingLocked(true);
             }
           }}
           onPointerUp={(event) => {
@@ -1356,7 +1376,11 @@ export function ChatClient({
               Ses kaydı sürüyor • {Math.floor(recordingSeconds / 60).toString().padStart(2, "0")}:{(recordingSeconds % 60).toString().padStart(2, "0")}
             </span>
             <p className="mt-1 text-[11px] text-red-600/90">
-              {pressRecordingMode ? "Birakinca gonderilir, disari kaydirirsan iptal olur." : "Tekrar dokunarak gonderebilir veya iptal edebilirsin."}
+              {recordingLocked
+                ? "Kayit kilitlendi. Parmagi birakabilirsin."
+                : pressRecordingMode
+                  ? "Yukari kaydirirsan kilitlenir, birakinca gonderilir."
+                  : "Tekrar dokunarak gonderebilir veya iptal edebilirsin."}
             </p>
             <div className="mt-2 flex h-8 items-end gap-1 overflow-hidden rounded-full bg-white/70 px-2 py-1">
               {recordingWaveBars.map((barHeight, index) => (
@@ -1368,13 +1392,24 @@ export function ChatClient({
               ))}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void stopAudioRecording(false)}
-            className="ml-3 rounded-full border border-red-200 bg-white px-2.5 py-1 font-semibold text-red-700 hover:bg-red-100"
-          >
-            İptal
-          </button>
+          <div className="ml-3 flex items-center gap-2">
+            {recordingLocked ? (
+              <button
+                type="button"
+                onClick={() => void stopAudioRecording(true)}
+                className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 font-semibold text-emerald-700 hover:bg-emerald-50"
+              >
+                Gönder
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void stopAudioRecording(false)}
+              className="rounded-full border border-red-200 bg-white px-2.5 py-1 font-semibold text-red-700 hover:bg-red-100"
+            >
+              İptal
+            </button>
+          </div>
         </div>
       ) : null}
       </div>
