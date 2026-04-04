@@ -1,9 +1,8 @@
 ﻿"use client";
 
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { CheckCheck, MessageCircleMore, Pin, Plus, Search, Sparkles, UsersRound } from "lucide-react";
 
 import { MessagesUserSearch } from "@/components/messages-user-search";
@@ -48,12 +47,7 @@ export function MessagesHub({
   currentUserId: string;
   conversations: ConversationListItem[];
 }) {
-  const router = useRouter();
   const [liveConversations, setLiveConversations] = useState(conversations);
-
-  useEffect(() => {
-    setLiveConversations(conversations);
-  }, [conversations]);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,9 +62,6 @@ export function MessagesHub({
         .then((items) => {
           if (cancelled || !items) return;
           setLiveConversations(items);
-          startTransition(() => {
-            router.refresh();
-          });
         })
         .catch(() => {});
     };
@@ -101,7 +92,7 @@ export function MessagesHub({
       window.removeEventListener("mahalle:refresh-conversations", refreshConversations as EventListener);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [router]);
+  }, []);
 
   const pinnedConversations = useMemo(
     () => liveConversations.filter((conversation) => conversation.isPinned),
