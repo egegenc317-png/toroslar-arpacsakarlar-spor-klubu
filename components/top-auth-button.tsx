@@ -8,6 +8,14 @@ import { Bell, LogOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
+type MessageAlert = {
+  id: string;
+  peer: string;
+  body: string;
+  createdAt: string;
+  isGroup?: boolean;
+};
+
 export function TopAuthButton({
   isLoggedIn,
   userId,
@@ -25,6 +33,7 @@ export function TopAuthButton({
 }) {
   const router = useRouter();
   const [liveUnreadCount, setLiveUnreadCount] = useState(unreadCount);
+  const [toastAlert, setToastAlert] = useState<MessageAlert | null>(null);
   const storageKey = "mahalle:shell-unread-count";
   const lastUnreadCountRef = useRef(unreadCount);
   const lastMessageNotificationKeyRef = useRef("");
@@ -44,6 +53,34 @@ export function TopAuthButton({
     let cancelled = false;
     let intervalId: number | null = null;
     let eventSource: EventSource | null = null;
+    let notificationsEventSource: EventSource | null = null;
+    let toastTimer: number | null = null;
+
+    const showMessageNotification = (messageAlert: MessageAlert) => {
+      const notificationKey = `${messageAlert.id}:${messageAlert.createdAt}`;
+      if (lastMessageNotificationKeyRef.current === notificationKey) return;
+      lastMessageNotificationKeyRef.current = notificationKey;
+
+      setToastAlert(messageAlert);
+      if (toastTimer) window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => {
+        setToastAlert((current) => (current && `${current.id}:${current.createdAt}` === notificationKey ? null : current));
+      }, 5000);
+
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+        const title = messageAlert.isGroup
+          ? `${messageAlert.peer} grubunda yeni mesaj`
+          : `${messageAlert.peer} sana mesaj gönderdi`;
+        const notification = new Notification(title, {
+          body: messageAlert.body || "Yeni mesajın var.",
+          tag: notificationKey
+        });
+        notification.onclick = () => {
+          window.focus();
+          window.location.href = `/messages/${messageAlert.id}`;
+        };
+      }
+    };
 
     const maybeRefreshConversationsAndNotify = async (nextUnreadCount: number) => {
       const previousUnreadCount = lastUnreadCountRef.current;
@@ -58,24 +95,7 @@ export function TopAuthButton({
         const data = await res.json();
         const firstMessageAlert = Array.isArray(data?.messageAlerts) ? data.messageAlerts[0] : null;
         if (!firstMessageAlert) return;
-
-        const notificationKey = `${firstMessageAlert.id}:${firstMessageAlert.createdAt}`;
-        if (lastMessageNotificationKeyRef.current === notificationKey) return;
-        lastMessageNotificationKeyRef.current = notificationKey;
-
-        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-          const title = firstMessageAlert.isGroup
-            ? `${firstMessageAlert.peer} grubunda yeni mesaj`
-            : `${firstMessageAlert.peer} sana mesaj gönderdi`;
-          const notification = new Notification(title, {
-            body: firstMessageAlert.body || "Yeni mesajın var.",
-            tag: notificationKey
-          });
-          notification.onclick = () => {
-            window.focus();
-            window.location.href = `/messages/${firstMessageAlert.id}`;
-          };
-        }
+        showMessageNotification(firstMessageAlert);
       } catch {
         // Bildirim fetch'i hata verse de üst bar akmaya devam etsin.
       }
@@ -143,6 +163,29 @@ export function TopAuthButton({
       // SSE desteklenmezse polling fallback devam eder.
     }
 
+    try {
+      notificationsEventSource = new EventSource("/api/notifications/stream");
+      notificationsEventSource.addEventListener("notifications", (event) => {
+        try {
+          const data = JSON.parse((event as MessageEvent).data);
+          const firstMessageAlert = Array.isArray(data?.messageAlerts) ? data.messageAlerts[0] : null;
+          if (!cancelled) {
+            window.dispatchEvent(new CustomEvent("mahalle:refresh-conversations"));
+            if (firstMessageAlert) {
+              showMessageNotification(firstMessageAlert);
+            }
+          }
+        } catch {
+          // ignore malformed notification payloads
+        }
+      });
+      notificationsEventSource.onerror = () => {
+        notificationsEventSource?.close();
+      };
+    } catch {
+      // canlı bildirim stream'i desteklenmezse summary fallback devam eder.
+    }
+
     intervalId = window.setInterval(refreshIfVisible, 8000);
     window.addEventListener("focus", refreshIfVisible);
     document.addEventListener("visibilitychange", refreshIfVisible);
@@ -151,7 +194,9 @@ export function TopAuthButton({
     return () => {
       cancelled = true;
       if (intervalId) window.clearInterval(intervalId);
+      if (toastTimer) window.clearTimeout(toastTimer);
       eventSource?.close();
+      notificationsEventSource?.close();
       window.removeEventListener("focus", refreshIfVisible);
       document.removeEventListener("visibilitychange", refreshIfVisible);
       window.removeEventListener("mahalle:refresh-summary", refreshIfVisible as EventListener);
@@ -170,6 +215,20 @@ export function TopAuthButton({
 
   return (
     <div className={`inline-flex max-w-full items-center ${compact ? "gap-1" : "gap-2"}`}>
+      {toastAlert ? (
+        <button
+          type="button"
+          onClick={() => {
+            setToastAlert(null);
+            router.push(`/messages/${toastAlert.id}`);
+          }}
+          className="fixed right-3 top-[5.25rem] z-[70] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-amber-200 bg-white/97 px-4 py-3 text-left shadow-[0_16px_40px_rgba(180,120,45,0.18)] backdrop-blur sm:right-4 sm:top-[6rem] sm:max-w-sm"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Yeni Mesaj</p>
+          <p className="mt-1 truncate text-sm font-semibold text-zinc-900">{toastAlert.peer}</p>
+          <p className="mt-1 truncate text-sm text-zinc-600">{toastAlert.body || "Yeni mesajın var."}</p>
+        </button>
+      ) : null}
       <Button asChild type="button" size="icon" variant="outline" className={`relative shrink-0 border-amber-200 bg-white ${compact ? "h-9 w-9 rounded-xl" : "h-12 w-12 rounded-full"}`}>
         <Link href={notificationHref} prefetch aria-label="Bildirimler">
           <Bell className={`${compact ? "h-4.5 w-4.5" : "h-6 w-6"} text-amber-700`} />
