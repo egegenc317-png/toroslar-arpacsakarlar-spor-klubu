@@ -670,14 +670,14 @@ export function ChatClient({
   };
 
   return (
-    <div className="space-y-2">
-      <div className="relative overflow-hidden rounded-[22px] border border-amber-200 bg-[linear-gradient(170deg,#fff7ea_0%,#ffeaca_45%,#fff6e7_100%)] p-2.5">
+    <div className="space-y-1.5 sm:space-y-2">
+      <div className="relative overflow-hidden rounded-[20px] border border-amber-200 bg-[linear-gradient(170deg,#fff7ea_0%,#ffeaca_45%,#fff6e7_100%)] p-2 sm:rounded-[22px] sm:p-2.5">
         <div className="pointer-events-none absolute inset-0 opacity-[0.16]" style={{ backgroundImage: "radial-gradient(#b98855 0.8px, transparent 0.8px)", backgroundSize: "13px 13px" }} />
         {isGroup && pinnedMessage ? (
           <button
             type="button"
             onClick={scrollToPinnedMessage}
-            className="relative z-10 mb-2 block w-full rounded-2xl border border-amber-200 bg-[linear-gradient(135deg,#fff9ef_0%,#ffe6b8_50%,#fffdf8_100%)] px-3 py-2 text-left shadow-sm transition hover:border-amber-300 hover:shadow-md"
+            className="relative z-10 mb-1.5 block w-full rounded-2xl border border-amber-200 bg-[linear-gradient(135deg,#fff9ef_0%,#ffe6b8_50%,#fffdf8_100%)] px-3 py-2 text-left shadow-sm transition hover:border-amber-300 hover:shadow-md"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -702,12 +702,12 @@ export function ChatClient({
           </button>
         ) : null}
         {lastMessageDate ? (
-          <div className="relative z-10 mx-auto mb-2 w-fit rounded-full border border-amber-200 bg-white/85 px-3 py-1 text-[11px] font-medium text-zinc-600">
+          <div className="relative z-10 mx-auto mb-1.5 w-fit rounded-full border border-amber-200 bg-white/85 px-3 py-1 text-[10px] font-medium text-zinc-600 sm:mb-2 sm:text-[11px]">
             {lastMessageDate}
           </div>
         ) : null}
 
-        <div ref={scrollRef} className="relative z-10 max-h-[58vh] space-y-1.5 overflow-y-auto rounded-2xl bg-white/35 p-2 sm:max-h-[62vh] sm:p-2.5">
+        <div ref={scrollRef} className="relative z-10 max-h-[61vh] space-y-1.5 overflow-y-auto rounded-2xl bg-white/35 p-1.5 sm:max-h-[62vh] sm:p-2.5">
           {messages.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-amber-200 bg-white/95 px-3 py-7 text-center text-sm text-zinc-500">{emptyHint}</p>
           ) : (
@@ -721,7 +721,7 @@ export function ChatClient({
               if (systemText) {
                 return (
                   <div key={m.id} className="py-1">
-                    <div className="mx-auto flex w-fit max-w-[92%] items-center gap-2 rounded-full border border-amber-200/90 bg-[linear-gradient(135deg,#fffdf8_0%,#fff0d2_48%,#ffffff_100%)] px-3 py-1.5 text-center text-[11px] font-medium text-zinc-700 shadow-[0_8px_25px_rgba(180,120,45,0.12)]">
+                    <div className="mx-auto flex w-fit max-w-[94%] items-center gap-2 rounded-full border border-amber-200/90 bg-[linear-gradient(135deg,#fffdf8_0%,#fff0d2_48%,#ffffff_100%)] px-3 py-1.5 text-center text-[10px] font-medium text-zinc-700 shadow-[0_8px_25px_rgba(180,120,45,0.12)] sm:max-w-[92%] sm:text-[11px]">
                       <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-500 text-white">
                         <Sparkles className="h-3 w-3" />
                       </span>
@@ -737,7 +737,7 @@ export function ChatClient({
                   ref={(node) => {
                     messageRefs.current[m.id] = node;
                   }}
-                  className={`group relative w-fit max-w-[92%] px-3 py-1.5 text-sm shadow-sm sm:max-w-[84%] ${mine ? "ml-auto rounded-[16px] rounded-br-sm bg-gradient-to-r from-orange-500 to-amber-500 text-white" : "rounded-[16px] rounded-bl-sm border border-amber-200 bg-white text-zinc-800"} ${pinnedMessage?.id === m.id ? "ring-2 ring-amber-300 ring-offset-2 ring-offset-[#fff5e6]" : ""}`}
+                  className={`group relative w-fit max-w-[95%] px-2.5 py-1.5 text-[13px] shadow-sm sm:max-w-[84%] sm:px-3 sm:text-sm ${mine ? "ml-auto rounded-[16px] rounded-br-sm bg-gradient-to-r from-orange-500 to-amber-500 text-white" : "rounded-[16px] rounded-bl-sm border border-amber-200 bg-white text-zinc-800"} ${pinnedMessage?.id === m.id ? "ring-2 ring-amber-300 ring-offset-2 ring-offset-[#fff5e6]" : ""}`}
                 >
                   {canPin ? (
                     <button
@@ -888,7 +888,7 @@ export function ChatClient({
           </div>
         ) : null}
 
-        <form onSubmit={send} className="flex items-center gap-1 rounded-2xl border border-amber-200 bg-white/95 p-1.5 shadow-lg shadow-amber-100/60 backdrop-blur sm:gap-1.5 sm:p-2">
+        <form onSubmit={send} className="flex items-center gap-1 rounded-[20px] border border-amber-200 bg-white/95 p-1.5 shadow-lg shadow-amber-100/60 backdrop-blur sm:gap-1.5 sm:rounded-2xl sm:p-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -916,7 +916,7 @@ export function ChatClient({
             ref={emojiButtonRef}
             type="button"
             onClick={() => setEmojiOpen((prev) => !prev)}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-zinc-500 transition hover:bg-amber-50 hover:text-amber-700 sm:h-9 sm:w-9"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-amber-50 hover:text-amber-700 sm:h-9 sm:w-9"
             aria-label="Emoji"
           >
             <Smile className="h-4.5 w-4.5" />
@@ -927,14 +927,14 @@ export function ChatClient({
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder={`${peerName} için bir mesaj yaz...`}
-          className="h-10 rounded-full border-amber-200 bg-white text-sm focus-visible:ring-orange-300"
+          className="h-10 min-w-0 rounded-full border-amber-200 bg-white px-3 text-[13px] focus-visible:ring-orange-300 sm:text-sm"
         />
 
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={sending || uploadingFile}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-zinc-500 transition hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50 sm:h-9 sm:w-9"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50 sm:h-9 sm:w-9"
           aria-label="Ek dosya"
         >
           <Paperclip className="h-4.5 w-4.5" />
@@ -943,13 +943,13 @@ export function ChatClient({
           type="button"
           onClick={() => void openCamera()}
           disabled={sending || uploadingFile}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-zinc-500 transition hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50 sm:h-9 sm:w-9"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50 sm:h-9 sm:w-9"
           aria-label="Kamera"
         >
           <Camera className="h-4.5 w-4.5" />
         </button>
 
-        <Button type="submit" disabled={sending || uploadingFile || !body.trim()} className="h-10 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 px-3 text-white hover:from-orange-600 hover:to-amber-600 sm:px-4">
+        <Button type="submit" disabled={sending || uploadingFile || !body.trim()} className="h-10 shrink-0 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 px-3 text-white hover:from-orange-600 hover:to-amber-600 sm:px-4">
           <SendHorizonal className="h-4 w-4" />
         </Button>
       </form>
