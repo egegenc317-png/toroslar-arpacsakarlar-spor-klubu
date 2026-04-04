@@ -34,6 +34,10 @@ type PinnedMessage = {
   createdAt: string;
 };
 
+type MessagePayload = Message & {
+  sender?: { id: string; name: string };
+};
+
 function formatMessageTime(dateString: string) {
   return new Date(dateString).toLocaleTimeString("tr-TR", {
     hour: "2-digit",
@@ -166,6 +170,22 @@ export function ChatClient({
       window.dispatchEvent(new CustomEvent("mahalle:refresh-summary"));
     }
   };
+
+  const replaceOptimisticMessage = useCallback((optimisticId: string, nextMessage: MessagePayload) => {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === optimisticId
+          ? {
+              id: nextMessage.id,
+              body: nextMessage.body,
+              senderId: nextMessage.senderId,
+              createdAt: nextMessage.createdAt,
+              sender: nextMessage.sender || { id: nextMessage.senderId, name: "Sen" }
+            }
+          : message
+      )
+    );
+  }, []);
 
   const mentionQuery = useMemo(() => {
     const match = body.match(/(?:^|\s)@([a-zA-Z0-9_çğıöşüÇĞİÖŞÜ]*)$/);
@@ -347,7 +367,12 @@ export function ChatClient({
       });
 
       if (res.ok) {
-        await fetchMessages();
+        const data = await res.json().catch(() => ({}));
+        if (data?.item) {
+          replaceOptimisticMessage(optimisticId, data.item);
+        } else {
+          setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        }
         notifyShellRefresh();
         return;
       }
@@ -375,7 +400,7 @@ export function ChatClient({
     } finally {
       setSending(false);
     }
-  }, [conversationId, currentUserId, fetchMessages, isGroup, peerId, peerName, router, sending]);
+  }, [conversationId, currentUserId, isGroup, peerId, peerName, replaceOptimisticMessage, router, sending]);
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -436,7 +461,12 @@ export function ChatClient({
         return;
       }
 
-      await fetchMessages();
+      const messageData = await messageRes.json().catch(() => ({}));
+      if (messageData?.item) {
+        replaceOptimisticMessage(optimisticId, messageData.item);
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      }
       notifyShellRefresh();
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
@@ -523,7 +553,6 @@ export function ChatClient({
             }
           : null
       );
-      router.refresh();
     } catch {
       setError("Sabit mesaj güncellenemedi.");
     } finally {

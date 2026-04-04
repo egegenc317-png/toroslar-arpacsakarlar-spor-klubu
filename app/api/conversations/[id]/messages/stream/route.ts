@@ -37,7 +37,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       await pushMessages();
       messagesInterval = setInterval(() => {
         if (!closed) void pushMessages();
-      }, 2500);
+      }, 6000);
       keepAliveInterval = setInterval(() => {
         if (!closed) controller.enqueue(encoder.encode(": ping\n\n"));
       }, 15000);

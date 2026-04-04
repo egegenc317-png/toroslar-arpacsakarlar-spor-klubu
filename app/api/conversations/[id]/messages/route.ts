@@ -50,5 +50,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     data: { conversationId: conversation.id, senderId: session.user.id, body: parsed.data.body }
   });
 
-  return NextResponse.json({ id: msg.id }, { status: 201 });
+  return NextResponse.json(
+    {
+      item: {
+        ...msg,
+        createdAt: msg.createdAt.toISOString(),
+        sender: {
+          id: session.user.id,
+          name: session.user.name || "Sen"
+        }
+      }
+    },
+    { status: 201 }
+  );
 }
