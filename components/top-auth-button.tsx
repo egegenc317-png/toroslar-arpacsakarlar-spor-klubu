@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bell, LogOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -26,17 +26,60 @@ export function TopAuthButton({
   const router = useRouter();
   const [liveUnreadCount, setLiveUnreadCount] = useState(unreadCount);
   const storageKey = "mahalle:shell-unread-count";
+  const lastUnreadCountRef = useRef(unreadCount);
+  const lastMessageNotificationKeyRef = useRef("");
 
   useEffect(() => {
     setLiveUnreadCount(unreadCount);
+    lastUnreadCountRef.current = unreadCount;
   }, [unreadCount]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
 
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      void Notification.requestPermission().catch(() => "default");
+    }
+
     let cancelled = false;
     let intervalId: number | null = null;
     let eventSource: EventSource | null = null;
+
+    const maybeRefreshConversationsAndNotify = async (nextUnreadCount: number) => {
+      const previousUnreadCount = lastUnreadCountRef.current;
+      lastUnreadCountRef.current = nextUnreadCount;
+      window.dispatchEvent(new CustomEvent("mahalle:refresh-conversations"));
+
+      if (nextUnreadCount <= previousUnreadCount) return;
+
+      try {
+        const res = await fetch("/api/notifications/live", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const firstMessageAlert = Array.isArray(data?.messageAlerts) ? data.messageAlerts[0] : null;
+        if (!firstMessageAlert) return;
+
+        const notificationKey = `${firstMessageAlert.id}:${firstMessageAlert.createdAt}`;
+        if (lastMessageNotificationKeyRef.current === notificationKey) return;
+        lastMessageNotificationKeyRef.current = notificationKey;
+
+        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+          const title = firstMessageAlert.isGroup
+            ? `${firstMessageAlert.peer} grubunda yeni mesaj`
+            : `${firstMessageAlert.peer} sana mesaj gönderdi`;
+          const notification = new Notification(title, {
+            body: firstMessageAlert.body || "Yeni mesajın var.",
+            tag: notificationKey
+          });
+          notification.onclick = () => {
+            window.focus();
+            window.location.href = `/messages/${firstMessageAlert.id}`;
+          };
+        }
+      } catch {
+        // Bildirim fetch'i hata verse de üst bar akmaya devam etsin.
+      }
+    };
 
     const loadSummary = async () => {
       try {
@@ -45,6 +88,7 @@ export function TopAuthButton({
         const data = await res.json();
         if (!cancelled && typeof data?.unreadCount === "number") {
           setLiveUnreadCount(data.unreadCount);
+          void maybeRefreshConversationsAndNotify(data.unreadCount);
           try {
             window.sessionStorage.setItem(storageKey, String(data.unreadCount));
           } catch {
@@ -81,6 +125,7 @@ export function TopAuthButton({
           const data = JSON.parse((event as MessageEvent).data);
           if (!cancelled && typeof data?.unreadCount === "number") {
             setLiveUnreadCount(data.unreadCount);
+            void maybeRefreshConversationsAndNotify(data.unreadCount);
             try {
               window.sessionStorage.setItem(storageKey, String(data.unreadCount));
             } catch {
@@ -98,7 +143,7 @@ export function TopAuthButton({
       // SSE desteklenmezse polling fallback devam eder.
     }
 
-    intervalId = window.setInterval(refreshIfVisible, 15000);
+    intervalId = window.setInterval(refreshIfVisible, 8000);
     window.addEventListener("focus", refreshIfVisible);
     document.addEventListener("visibilitychange", refreshIfVisible);
     window.addEventListener("mahalle:refresh-summary", refreshIfVisible as EventListener);

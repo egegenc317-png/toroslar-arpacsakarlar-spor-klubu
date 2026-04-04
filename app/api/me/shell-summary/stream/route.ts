@@ -33,7 +33,7 @@ export async function GET() {
       await pushSummary();
       summaryInterval = setInterval(() => {
         if (!closed) void pushSummary();
-      }, 8000);
+      }, 4000);
       keepAliveInterval = setInterval(() => {
         if (!closed) controller.enqueue(encoder.encode(": ping\n\n"));
       }, 15000);
