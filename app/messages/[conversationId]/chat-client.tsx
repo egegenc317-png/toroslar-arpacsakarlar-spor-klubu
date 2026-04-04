@@ -232,6 +232,7 @@ export function ChatClient({
   const [viewportSettling, setViewportSettling] = useState(false);
   const [recordingAudio, setRecordingAudio] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [recordingWaveBars, setRecordingWaveBars] = useState<number[]>(() => buildAudioWaveBars(12));
   const [audioPlaybackRates, setAudioPlaybackRates] = useState<Record<string, number>>({});
   const [listenedAudioIds, setListenedAudioIds] = useState<Record<string, boolean>>({});
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -252,6 +253,9 @@ export function ChatClient({
   const audioChunksRef = useRef<Blob[]>([]);
   const audioTimerRef = useRef<number | null>(null);
   const audioElementRefs = useRef<Record<string, HTMLAudioElement | null>>({});
+  const audioAnalyserRef = useRef<AnalyserNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioAnimationFrameRef = useRef<number | null>(null);
   const notifyShellRefresh = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("mahalle:refresh-summary"));
@@ -502,6 +506,12 @@ export function ChatClient({
 
   useEffect(() => {
     return () => {
+      if (audioAnimationFrameRef.current) {
+        window.cancelAnimationFrame(audioAnimationFrameRef.current);
+      }
+      if (audioContextRef.current) {
+        void audioContextRef.current.close();
+      }
       if (audioTimerRef.current) {
         window.clearInterval(audioTimerRef.current);
       }
@@ -699,7 +709,39 @@ export function ChatClient({
       audioChunksRef.current = [];
       setRecordingAudio(true);
       setRecordingSeconds(0);
+      setRecordingWaveBars(buildAudioWaveBars(12));
       setError(null);
+
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 64;
+      analyser.smoothingTimeConstant = 0.82;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      audioContextRef.current = audioContext;
+      audioAnalyserRef.current = analyser;
+
+      const frequencyData = new Uint8Array(analyser.frequencyBinCount);
+      const tickWaveform = () => {
+        const currentAnalyser = audioAnalyserRef.current;
+        if (!currentAnalyser) return;
+        currentAnalyser.getByteFrequencyData(frequencyData);
+        const bucketCount = 18;
+        const bucketSize = Math.max(1, Math.floor(frequencyData.length / bucketCount));
+        const nextBars = Array.from({ length: bucketCount }, (_, index) => {
+          const start = index * bucketSize;
+          const end = Math.min(frequencyData.length, start + bucketSize);
+          let sum = 0;
+          for (let cursor = start; cursor < end; cursor += 1) {
+            sum += frequencyData[cursor];
+          }
+          const average = sum / Math.max(1, end - start);
+          return Math.max(6, Math.min(30, Math.round((average / 255) * 28)));
+        });
+        setRecordingWaveBars(nextBars);
+        audioAnimationFrameRef.current = window.requestAnimationFrame(tickWaveform);
+      };
+      audioAnimationFrameRef.current = window.requestAnimationFrame(tickWaveform);
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -718,6 +760,17 @@ export function ChatClient({
 
   const stopAudioRecording = async (sendRecording: boolean) => {
     const recorder = audioRecorderRef.current;
+
+    if (audioAnimationFrameRef.current) {
+      window.cancelAnimationFrame(audioAnimationFrameRef.current);
+      audioAnimationFrameRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      void audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    audioAnalyserRef.current = null;
 
     if (audioTimerRef.current) {
       window.clearInterval(audioTimerRef.current);
@@ -750,6 +803,7 @@ export function ChatClient({
     const finalDuration = recordingSeconds;
     setRecordingAudio(false);
     setRecordingSeconds(0);
+    setRecordingWaveBars(buildAudioWaveBars(12));
 
     if (!sendRecording || !finalBlob || finalBlob.size === 0) return;
 
@@ -1249,14 +1303,25 @@ export function ChatClient({
       </form>
       {recordingAudio ? (
         <div className="mt-1 flex items-center justify-between rounded-2xl border border-red-200 bg-red-50/95 px-3 py-2 text-xs text-red-700 shadow-sm">
-          <span className="inline-flex items-center gap-2 font-semibold">
-            <span className="h-2 w-2 rounded-full bg-red-500" />
-            Ses kaydı sürüyor • {Math.floor(recordingSeconds / 60).toString().padStart(2, "0")}:{(recordingSeconds % 60).toString().padStart(2, "0")}
-          </span>
+          <div className="min-w-0 flex-1">
+            <span className="inline-flex items-center gap-2 font-semibold">
+              <span className="h-2 w-2 rounded-full bg-red-500" />
+              Ses kaydı sürüyor • {Math.floor(recordingSeconds / 60).toString().padStart(2, "0")}:{(recordingSeconds % 60).toString().padStart(2, "0")}
+            </span>
+            <div className="mt-2 flex h-8 items-end gap-1 overflow-hidden rounded-full bg-white/70 px-2 py-1">
+              {recordingWaveBars.map((barHeight, index) => (
+                <span
+                  key={`recording-bar-${index}`}
+                  className="w-1 rounded-full bg-gradient-to-t from-red-500 to-orange-400"
+                  style={{ height: `${barHeight}px` }}
+                />
+              ))}
+            </div>
+          </div>
           <button
             type="button"
             onClick={() => void stopAudioRecording(false)}
-            className="rounded-full border border-red-200 bg-white px-2.5 py-1 font-semibold text-red-700 hover:bg-red-100"
+            className="ml-3 rounded-full border border-red-200 bg-white px-2.5 py-1 font-semibold text-red-700 hover:bg-red-100"
           >
             İptal
           </button>
