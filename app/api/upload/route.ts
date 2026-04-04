@@ -26,6 +26,11 @@ const SAFE_MIME_TYPES = new Set([
   "audio/mpeg",
   "audio/wav",
   "audio/webm",
+  "audio/ogg",
+  "audio/aac",
+  "audio/mp4",
+  "audio/mp4a-latm",
+  "audio/x-m4a",
   "video/mp4",
   "video/webm",
   "video/quicktime"
