@@ -114,24 +114,25 @@ const QUICK_EMOJIS = [
   "🌹", "🌸", "🌞", "🌙", "☕", "🍀", "🎵", "📸", "📱", "🚀"
 ];
 
-function buildFileMessage(name: string, url: string, viewOnce = false) {
-  return `${FILE_JSON_PREFIX}${JSON.stringify({ name, url, viewOnce })}`;
+function buildFileMessage(name: string, url: string, viewOnce = false, durationSeconds?: number) {
+  return `${FILE_JSON_PREFIX}${JSON.stringify({ name, url, viewOnce, durationSeconds })}`;
 }
 
-function parseFileMessage(body: string): { name: string; url: string; viewOnce: boolean; consumed: boolean } | null {
+function parseFileMessage(body: string): { name: string; url: string; viewOnce: boolean; consumed: boolean; durationSeconds?: number | null } | null {
   if (body.startsWith(FILE_ONCE_CONSUMED_PREFIX)) {
-    return { name: body.slice(FILE_ONCE_CONSUMED_PREFIX.length) || "Tek bakmalık Fotoğraf", url: "", viewOnce: true, consumed: true };
+    return { name: body.slice(FILE_ONCE_CONSUMED_PREFIX.length) || "Tek bakmalık Fotoğraf", url: "", viewOnce: true, consumed: true, durationSeconds: null };
   }
 
   if (body.startsWith(FILE_JSON_PREFIX)) {
     try {
-      const parsed = JSON.parse(body.slice(FILE_JSON_PREFIX.length)) as { name?: string; url?: string; viewOnce?: boolean };
+      const parsed = JSON.parse(body.slice(FILE_JSON_PREFIX.length)) as { name?: string; url?: string; viewOnce?: boolean; durationSeconds?: number };
       if (!parsed?.name) return null;
       return {
         name: parsed.name || "Dosya",
         url: normalizeMediaUrl(parsed.url || ""),
         viewOnce: Boolean(parsed.viewOnce),
-        consumed: false
+        consumed: false,
+        durationSeconds: typeof parsed.durationSeconds === "number" ? parsed.durationSeconds : null
       };
     } catch {
       return null;
@@ -144,7 +145,7 @@ function parseFileMessage(body: string): { name: string; url: string; viewOnce: 
   if (splitIndex < 1) return null;
   const name = payload.slice(0, splitIndex).trim();
   const url = payload.slice(splitIndex + 1).trim();
-  return { name: name || "Dosya", url: normalizeMediaUrl(url), viewOnce: false, consumed: false };
+  return { name: name || "Dosya", url: normalizeMediaUrl(url), viewOnce: false, consumed: false, durationSeconds: null };
 }
 
 function isImageUrl(url: string) {
@@ -153,6 +154,19 @@ function isImageUrl(url: string) {
 
 function isAudioFile(name: string, url: string) {
   return /\.(mp3|wav|ogg|m4a|aac|webm)(\?|$)/i.test(`${name} ${url}`);
+}
+
+function formatAudioDuration(totalSeconds?: number | null) {
+  if (!totalSeconds || totalSeconds < 1) return "00:00";
+  const safe = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(safe / 60).toString().padStart(2, "0");
+  const seconds = (safe % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function buildAudioWaveBars(durationSeconds?: number | null) {
+  const total = Math.min(18, Math.max(8, Math.round((durationSeconds || 0) / 2) || 10));
+  return Array.from({ length: total }, (_, index) => 10 + ((index * 7 + total * 3) % 18));
 }
 
 function parseSystemMessage(body: string) {
@@ -592,9 +606,10 @@ export function ChatClient({
     await sendTextMessage(text);
   };
 
-  const sendFile = async (file: File, options?: { viewOnce?: boolean }) => {
+  const sendFile = async (file: File, options?: { viewOnce?: boolean; durationSeconds?: number }) => {
     if (sending || uploadingFile) return;
     const viewOnce = Boolean(options?.viewOnce);
+    const durationSeconds = options?.durationSeconds;
     const optimizedFile = file.type.startsWith("image/")
       ? await optimizeUploadImage(file, { maxDimension: 1600, quality: 0.82 })
       : file;
@@ -635,7 +650,7 @@ export function ChatClient({
       const messageRes = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: buildFileMessage(optimizedFile.name, uploadedUrl, viewOnce) })
+        body: JSON.stringify({ body: buildFileMessage(optimizedFile.name, uploadedUrl, viewOnce, durationSeconds) })
       });
 
       if (!messageRes.ok) {
@@ -723,6 +738,7 @@ export function ChatClient({
       audioStreamRef.current = null;
     }
 
+    const finalDuration = recordingSeconds;
     setRecordingAudio(false);
     setRecordingSeconds(0);
 
@@ -730,7 +746,7 @@ export function ChatClient({
 
     const extension = finalBlob.type.includes("mp4") || finalBlob.type.includes("aac") ? "m4a" : finalBlob.type.includes("ogg") ? "ogg" : "webm";
     const audioFile = new File([finalBlob], `ses-kaydi-${Date.now()}.${extension}`, { type: finalBlob.type || "audio/webm" });
-    await sendFile(audioFile, { viewOnce: false });
+    await sendFile(audioFile, { viewOnce: false, durationSeconds: finalDuration });
   };
 
   const openCamera = async () => {
@@ -883,6 +899,7 @@ export function ChatClient({
               const systemText = parseSystemMessage(m.body);
               const previewUrl = fileMeta?.url || m._localPreviewUrl || "";
               const isAudioAttachment = fileMeta ? isAudioFile(fileMeta.name, previewUrl) : false;
+              const audioBars = isAudioAttachment ? buildAudioWaveBars(fileMeta?.durationSeconds) : [];
               if (systemText) {
                 return (
                   <div key={m.id} className="py-1">
@@ -944,9 +961,27 @@ export function ChatClient({
                     ) :
                     isAudioAttachment && previewUrl ? (
                       <div className={`rounded-[14px] border px-2.5 py-2.5 sm:rounded-xl sm:px-3 sm:py-3 ${mine ? "border-orange-200/50 bg-white/15" : "border-amber-200 bg-amber-50/40"}`}>
-                        <div className="mb-2 flex items-center gap-2">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <Mic className={`h-4 w-4 ${mine ? "text-orange-100" : "text-orange-600"}`} />
+                            <span className={`truncate text-xs font-medium ${mine ? "text-orange-50" : "text-zinc-700"}`}>{fileMeta.name}</span>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${mine ? "bg-white/15 text-orange-50" : "bg-white text-zinc-600"}`}>
+                            {formatAudioDuration(fileMeta?.durationSeconds)}
+                          </span>
+                        </div>
+                        <div className="mb-2 flex h-8 items-end gap-1 overflow-hidden rounded-full px-1">
+                          {audioBars.map((barHeight, index) => (
+                            <span
+                              key={`${m.id}-bar-${index}`}
+                              className={`w-1 rounded-full ${mine ? "bg-orange-100/85" : "bg-orange-400/80"}`}
+                              style={{ height: `${barHeight}px` }}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
                           <Mic className={`h-4 w-4 ${mine ? "text-orange-100" : "text-orange-600"}`} />
-                          <span className={`truncate text-xs font-medium ${mine ? "text-orange-50" : "text-zinc-700"}`}>{fileMeta.name}</span>
+                          <span className={`text-[11px] font-semibold ${mine ? "text-orange-50" : "text-zinc-600"}`}>Ses mesajı</span>
                         </div>
                         <audio controls preload="none" className="h-10 w-full">
                           <source src={previewUrl} />
