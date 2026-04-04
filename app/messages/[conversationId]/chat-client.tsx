@@ -233,6 +233,7 @@ export function ChatClient({
   const [recordingAudio, setRecordingAudio] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingWaveBars, setRecordingWaveBars] = useState<number[]>(() => buildAudioWaveBars(12));
+  const [pressRecordingMode, setPressRecordingMode] = useState(false);
   const [audioPlaybackRates, setAudioPlaybackRates] = useState<Record<string, number>>({});
   const [listenedAudioIds, setListenedAudioIds] = useState<Record<string, boolean>>({});
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -256,6 +257,8 @@ export function ChatClient({
   const audioAnalyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioAnimationFrameRef = useRef<number | null>(null);
+  const pressRecordingStartedRef = useRef(false);
+  const suppressMicClickRef = useRef(false);
   const notifyShellRefresh = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("mahalle:refresh-summary"));
@@ -804,12 +807,27 @@ export function ChatClient({
     setRecordingAudio(false);
     setRecordingSeconds(0);
     setRecordingWaveBars(buildAudioWaveBars(12));
+    setPressRecordingMode(false);
+    pressRecordingStartedRef.current = false;
 
     if (!sendRecording || !finalBlob || finalBlob.size === 0) return;
 
     const extension = finalBlob.type.includes("mp4") || finalBlob.type.includes("aac") ? "m4a" : finalBlob.type.includes("ogg") ? "ogg" : "webm";
     const audioFile = new File([finalBlob], `ses-kaydi-${Date.now()}.${extension}`, { type: finalBlob.type || "audio/webm" });
     await sendFile(audioFile, { viewOnce: false, durationSeconds: finalDuration });
+  };
+
+  const beginPressRecording = async () => {
+    if (recordingAudio || sending || uploadingFile) return;
+    suppressMicClickRef.current = true;
+    pressRecordingStartedRef.current = true;
+    setPressRecordingMode(true);
+    await startAudioRecording();
+  };
+
+  const finishPressRecording = async (sendRecording: boolean) => {
+    if (!pressRecordingStartedRef.current) return;
+    await stopAudioRecording(sendRecording);
   };
 
   const openCamera = async () => {
@@ -1271,10 +1289,39 @@ export function ChatClient({
 
         <button
           type="button"
-          onClick={() => void (recordingAudio ? stopAudioRecording(true) : startAudioRecording())}
+          onClick={() => {
+            if (suppressMicClickRef.current) {
+              suppressMicClickRef.current = false;
+              return;
+            }
+            void (recordingAudio ? stopAudioRecording(true) : startAudioRecording());
+          }}
+          onPointerDown={(event) => {
+            if (event.pointerType === "mouse" || event.pointerType === "touch" || event.pointerType === "pen") {
+              event.preventDefault();
+              void beginPressRecording();
+            }
+          }}
+          onPointerUp={(event) => {
+            if (pressRecordingStartedRef.current && (event.pointerType === "mouse" || event.pointerType === "touch" || event.pointerType === "pen")) {
+              event.preventDefault();
+              void finishPressRecording(true);
+            }
+          }}
+          onPointerLeave={(event) => {
+            if (pressRecordingStartedRef.current && (event.pointerType === "mouse" || event.pointerType === "touch" || event.pointerType === "pen")) {
+              event.preventDefault();
+              void finishPressRecording(false);
+            }
+          }}
+          onPointerCancel={() => {
+            if (pressRecordingStartedRef.current) {
+              void finishPressRecording(false);
+            }
+          }}
           disabled={sending || uploadingFile}
           className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition disabled:opacity-50 sm:h-9 sm:w-9 ${recordingAudio ? "bg-red-500 text-white hover:bg-red-600" : "text-zinc-500 hover:bg-amber-50 hover:text-amber-700"}`}
-          aria-label={recordingAudio ? "Ses kaydını bitir ve gönder" : "Ses kaydı başlat"}
+          aria-label={recordingAudio ? "Ses kaydını bitir ve gönder" : "Ses kaydı başlat veya basili tut"}
         >
           {recordingAudio ? <Square className="h-4 w-4" /> : <Mic className="h-4.5 w-4.5" />}
         </button>
@@ -1308,6 +1355,9 @@ export function ChatClient({
               <span className="h-2 w-2 rounded-full bg-red-500" />
               Ses kaydı sürüyor • {Math.floor(recordingSeconds / 60).toString().padStart(2, "0")}:{(recordingSeconds % 60).toString().padStart(2, "0")}
             </span>
+            <p className="mt-1 text-[11px] text-red-600/90">
+              {pressRecordingMode ? "Birakinca gonderilir, disari kaydirirsan iptal olur." : "Tekrar dokunarak gonderebilir veya iptal edebilirsin."}
+            </p>
             <div className="mt-2 flex h-8 items-end gap-1 overflow-hidden rounded-full bg-white/70 px-2 py-1">
               {recordingWaveBars.map((barHeight, index) => (
                 <span
