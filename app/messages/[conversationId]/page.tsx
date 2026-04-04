@@ -55,14 +55,14 @@ export default async function ConversationPage({ params }: { params: { conversat
 
     return (
       <Card className="overflow-visible border-amber-200/80 bg-[linear-gradient(180deg,#fff7eb_0%,#fff3e5_18%,#ffffff_100%)] shadow-[0_24px_70px_rgba(153,93,37,0.18)]">
-      <CardHeader className="relative overflow-hidden border-b border-amber-200/80 bg-[linear-gradient(115deg,#ffedcf_0%,#ffc978_38%,#ffb56a_74%,#ffddb5_100%)] px-2.5 py-2.5 md:px-4 md:py-4">
+      <CardHeader className="sticky top-0 z-20 relative overflow-hidden border-b border-amber-200/80 bg-[linear-gradient(115deg,#ffedcf_0%,#ffc978_38%,#ffb56a_74%,#ffddb5_100%)] px-2 py-2 md:px-4 md:py-4">
         <div className="pointer-events-none absolute inset-0 opacity-[0.13]" style={{ backgroundImage: "radial-gradient(#9a5b25 0.8px, transparent 0.8px)", backgroundSize: "12px 12px" }} />
         <div className="pointer-events-none absolute -right-10 top-6 h-24 w-24 rounded-full bg-white/20 blur-2xl" />
         <div className="pointer-events-none absolute -left-6 bottom-0 h-24 w-24 rounded-full bg-orange-300/20 blur-2xl" />
 
-        <div className="relative flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-start gap-2.5">
-            <Button asChild variant="outline" size="icon" className="mt-0.5 h-9 w-9 shrink-0 rounded-2xl border-white/70 bg-white/90 text-amber-700 shadow-sm hover:bg-white">
+        <div className="relative flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-2 lg:items-start lg:gap-2.5">
+            <Button asChild variant="outline" size="icon" className="h-9 w-9 shrink-0 rounded-2xl border-white/70 bg-white/90 text-amber-700 shadow-sm hover:bg-white">
               <Link href="/messages" aria-label="Mesaj listesine dön">
                 <ArrowLeft className="h-4 w-4" />
               </Link>
@@ -70,30 +70,35 @@ export default async function ConversationPage({ params }: { params: { conversat
 
             {isGroup ? (
               conversation.groupImage ? (
-                <Image src={conversation.groupImage} alt={peerName} width={64} height={64} className="h-12 w-12 shrink-0 rounded-[16px] object-cover shadow-[0_10px_24px_rgba(120,67,18,0.18)] sm:h-16 sm:w-16 sm:rounded-[22px]" />
+                <Image src={conversation.groupImage} alt={peerName} width={64} height={64} className="h-10 w-10 shrink-0 rounded-[14px] object-cover shadow-[0_10px_24px_rgba(120,67,18,0.18)] sm:h-12 sm:w-12 sm:rounded-[16px] lg:h-16 lg:w-16 lg:rounded-[22px]" />
               ) : (
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 text-white shadow-[0_12px_28px_rgba(234,88,12,0.24)] sm:h-16 sm:w-16 sm:rounded-[22px]">
-                  <UsersRound className="h-6 w-6" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 text-white shadow-[0_12px_28px_rgba(234,88,12,0.24)] sm:h-12 sm:w-12 sm:rounded-[16px] lg:h-16 lg:w-16 lg:rounded-[22px]">
+                  <UsersRound className="h-5 w-5 lg:h-6 lg:w-6" />
                 </div>
               )
             ) : (
               <Link
                 href={`/profile/${peerId}`}
                 aria-label={`${peerName} profiline git`}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 text-base font-bold text-white shadow-[0_12px_28px_rgba(234,88,12,0.24)] sm:h-16 sm:w-16 sm:rounded-[22px] sm:text-lg"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 text-sm font-bold text-white shadow-[0_12px_28px_rgba(234,88,12,0.24)] sm:h-12 sm:w-12 sm:rounded-[16px] sm:text-base lg:h-16 lg:w-16 lg:rounded-[22px] lg:text-lg"
               >
                 {getInitials(peerName)}
               </Link>
             )}
 
             <div className="min-w-0 flex-1">
-              <p className="inline-flex items-center gap-1.5 rounded-full border border-white/60 bg-white/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-800">
+              <p className="hidden items-center gap-1.5 rounded-full border border-white/60 bg-white/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-800 lg:inline-flex">
                 <Sparkles className="h-3.5 w-3.5" />
                 {isGroup ? "Grup Sohbeti" : "Sohbet"}
               </p>
-              <CardTitle className="mt-1.5 truncate text-lg font-black tracking-tight text-zinc-900 sm:mt-3 sm:text-2xl lg:text-[2rem]">{peerName}</CardTitle>
-              <p className="mt-0.5 max-w-2xl truncate text-[13px] text-zinc-700 sm:mt-1 sm:text-sm">{subtitle}</p>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:mt-3 sm:gap-2">
+              <div className="flex min-w-0 items-center gap-2 lg:block">
+                <CardTitle className="truncate text-[15px] font-black tracking-tight text-zinc-900 sm:text-lg lg:mt-1.5 lg:text-[2rem]">{peerName}</CardTitle>
+                <span className="inline-flex shrink-0 items-center rounded-full border border-white/70 bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-zinc-700 lg:hidden">
+                  {isGroup ? `${memberCount} üye` : "Aktif sohbet"}
+                </span>
+              </div>
+              <p className="mt-0.5 max-w-2xl truncate text-[12px] text-zinc-700 lg:mt-1 lg:text-sm">{subtitle}</p>
+              <div className="mt-2 hidden flex-wrap items-center gap-1.5 sm:gap-2 lg:flex lg:mt-3">
                 <span className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/85 px-2.5 py-1 text-[10px] font-semibold text-zinc-700 sm:px-3 sm:text-[11px]">
                   <MessageCircle className="h-3.5 w-3.5 text-orange-500" />
                   Aktif {nowLabel}
@@ -113,26 +118,26 @@ export default async function ConversationPage({ params }: { params: { conversat
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-1.5 lg:grid lg:min-w-[260px] lg:grid-cols-2 lg:gap-2">
-            <div className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-white/70 bg-white/85 px-2.5 py-2 text-[11px] font-semibold text-zinc-700 shadow-sm backdrop-blur lg:min-h-[74px] lg:flex-col lg:items-start lg:justify-center lg:rounded-[22px] lg:px-4 lg:py-3">
+          <div className="flex shrink-0 items-center gap-1.5 lg:grid lg:min-w-[260px] lg:grid-cols-2 lg:gap-2">
+            <div className="hidden min-w-0 items-center gap-1.5 rounded-full border border-white/70 bg-white/85 px-2.5 py-2 text-[11px] font-semibold text-zinc-700 shadow-sm backdrop-blur lg:inline-flex lg:min-h-[74px] lg:flex-col lg:items-start lg:justify-center lg:rounded-[22px] lg:px-4 lg:py-3">
               <span className="text-[11px] uppercase tracking-wide text-zinc-500">Durum</span>
               <span className="truncate text-sm font-bold text-zinc-900">{isGroup ? "Topluluk aktif" : "Sohbet açık"}</span>
             </div>
             {isGroup ? (
-              <Button asChild variant="outline" className="h-9 rounded-full border-white/70 bg-white/90 px-2.5 text-[11px] font-semibold text-amber-700 shadow-sm hover:bg-white lg:h-auto lg:min-h-[74px] lg:justify-between lg:rounded-[22px] lg:px-4 lg:py-3">
+              <Button asChild variant="outline" className="h-8 rounded-full border-white/70 bg-white/90 px-2.5 text-[11px] font-semibold text-amber-700 shadow-sm hover:bg-white lg:h-auto lg:min-h-[74px] lg:justify-between lg:rounded-[22px] lg:px-4 lg:py-3">
                 <Link href={`/messages/groups/${conversation.id}`} aria-label="Grup ayarları">
                   <span className="inline-flex items-center gap-2">
                     <Settings className="h-4 w-4" />
-                    Grup Ayarları
+                    <span className="hidden lg:inline">Grup Ayarları</span>
                   </span>
                 </Link>
               </Button>
             ) : (
-              <Button asChild variant="outline" className="h-9 rounded-full border-white/70 bg-white/90 px-2.5 text-[11px] font-semibold text-amber-700 shadow-sm hover:bg-white lg:h-auto lg:min-h-[74px] lg:justify-between lg:rounded-[22px] lg:px-4 lg:py-3">
+              <Button asChild variant="outline" className="h-8 rounded-full border-white/70 bg-white/90 px-2.5 text-[11px] font-semibold text-amber-700 shadow-sm hover:bg-white lg:h-auto lg:min-h-[74px] lg:justify-between lg:rounded-[22px] lg:px-4 lg:py-3">
                 <Link href={`/profile/${peerId}`} aria-label="Profil detayı">
                   <span className="inline-flex items-center gap-2">
                     <UsersRound className="h-4 w-4" />
-                    Profili Aç
+                    <span className="hidden lg:inline">Profili Aç</span>
                   </span>
                 </Link>
               </Button>
