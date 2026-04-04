@@ -288,16 +288,28 @@ export function ChatClient({
   const replaceOptimisticMessage = useCallback((optimisticId: string, nextMessage: MessagePayload) => {
     let nextMessages: Message[] = [];
     setMessages((prev) => {
-      nextMessages = prev.map((message) =>
-        message.id === optimisticId
-          ? {
-              id: nextMessage.id,
-              body: nextMessage.body,
-              senderId: nextMessage.senderId,
-              createdAt: nextMessage.createdAt,
-              sender: nextMessage.sender || { id: nextMessage.senderId, name: "Sen" }
-            }
-          : message
+      const normalizedMessage: Message = {
+        id: nextMessage.id,
+        body: nextMessage.body,
+        senderId: nextMessage.senderId,
+        createdAt: nextMessage.createdAt,
+        sender: nextMessage.sender || { id: nextMessage.senderId, name: "Sen" }
+      };
+
+      const optimisticIndex = prev.findIndex((message) => message.id === optimisticId);
+      if (optimisticIndex >= 0) {
+        nextMessages = prev.map((message, index) => (index === optimisticIndex ? normalizedMessage : message));
+        return nextMessages;
+      }
+
+      const existingIndex = prev.findIndex((message) => message.id === nextMessage.id);
+      if (existingIndex >= 0) {
+        nextMessages = prev.map((message, index) => (index === existingIndex ? normalizedMessage : message));
+        return nextMessages;
+      }
+
+      nextMessages = [...prev, normalizedMessage].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       );
       return nextMessages;
     });
