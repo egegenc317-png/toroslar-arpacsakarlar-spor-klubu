@@ -6,12 +6,17 @@ import { getConversationListItems } from "@/lib/messages-list";
 import { prisma } from "@/lib/prisma";
 import { conversationCreateSchema } from "@/lib/validations";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Yetkişiz" }, { status: 401 });
 
   const items = await getConversationListItems(session.user.id);
-  return NextResponse.json({ items });
+  const response = NextResponse.json({ items });
+  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  return response;
 }
 
 export async function POST(req: NextRequest) {

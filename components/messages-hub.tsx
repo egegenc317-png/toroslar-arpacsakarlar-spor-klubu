@@ -75,8 +75,13 @@ export function MessagesHub({
         .catch(() => {});
     };
 
+    refreshConversations();
+
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") refreshConversations();
+    };
+    const onPageShow = () => {
+      refreshConversations();
     };
 
     const intervalId = window.setInterval(() => {
@@ -84,6 +89,7 @@ export function MessagesHub({
     }, 8000);
 
     window.addEventListener("focus", refreshConversations);
+    window.addEventListener("pageshow", onPageShow);
     window.addEventListener("mahalle:refresh-conversations", refreshConversations as EventListener);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
@@ -91,6 +97,7 @@ export function MessagesHub({
       cancelled = true;
       window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshConversations);
+      window.removeEventListener("pageshow", onPageShow);
       window.removeEventListener("mahalle:refresh-conversations", refreshConversations as EventListener);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };

@@ -5,6 +5,9 @@ import { auth } from "@/lib/auth";
 import { getConversationListItems } from "@/lib/messages-list";
 import { MessagesHub } from "@/components/messages-hub";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function MessagesPage() {
   const session = await auth();
   if (!session) redirect("/auth/login");
