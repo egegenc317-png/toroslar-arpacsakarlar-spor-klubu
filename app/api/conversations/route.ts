@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
+import { getConversationListItems } from "@/lib/messages-list";
 import { prisma } from "@/lib/prisma";
 import { conversationCreateSchema } from "@/lib/validations";
 
@@ -9,16 +10,7 @@ export async function GET() {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Yetkişiz" }, { status: 401 });
 
-  const items = await prisma.conversation.findMany({
-    where: { OR: [{ buyerId: session.user.id }, { sellerId: session.user.id }] },
-    include: {
-      listing: { select: { id: true, title: true } },
-      buyer: { select: { id: true, name: true } },
-      seller: { select: { id: true, name: true } }
-    },
-    orderBy: { createdAt: "desc" }
-  });
-
+  const items = await getConversationListItems(session.user.id);
   return NextResponse.json({ items });
 }
 

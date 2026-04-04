@@ -1037,7 +1037,7 @@ export function ChatClient({
 
       <div
         ref={composerRef}
-        className="sticky bottom-1 z-30 pb-[env(safe-area-inset-bottom)]"
+        className="sticky bottom-1 z-30 -mx-0.5 border-t border-amber-100/70 bg-gradient-to-t from-[#fff7ea] via-[#fff7ea]/96 to-transparent px-0.5 pt-2 pb-[env(safe-area-inset-bottom)] sm:mx-0 sm:border-t-0 sm:bg-transparent sm:px-0 sm:pt-0"
         style={
           {
             bottom: `${composerBottom}px`,
@@ -1094,7 +1094,7 @@ export function ChatClient({
 
         <form
           onSubmit={send}
-          className="flex items-center gap-0.5 rounded-[18px] border border-amber-200 bg-white/95 p-1 shadow-lg shadow-amber-100/60 backdrop-blur sm:gap-1.5 sm:rounded-2xl sm:p-2"
+          className="flex items-center gap-0.5 rounded-[20px] border border-amber-200/90 bg-white/96 p-1.5 shadow-[0_10px_26px_rgba(180,120,45,0.14)] backdrop-blur sm:gap-1.5 sm:rounded-2xl sm:p-2"
           style={{
             transform: keyboardOpen ? "translateY(0)" : "translateY(0)",
             transition: viewportSettling ? "none" : "box-shadow 180ms ease-out, transform 180ms ease-out"

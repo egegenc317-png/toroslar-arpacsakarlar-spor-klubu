@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { startTransition, useEffect } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -49,14 +49,30 @@ export function MessagesHub({
   conversations: ConversationListItem[];
 }) {
   const router = useRouter();
-  const pinnedConversations = conversations.filter((conversation) => conversation.isPinned);
-  const regularConversations = conversations.filter((conversation) => !conversation.isPinned);
+  const [liveConversations, setLiveConversations] = useState(conversations);
 
   useEffect(() => {
+    setLiveConversations(conversations);
+  }, [conversations]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     const refreshConversations = () => {
-      startTransition(() => {
-        router.refresh();
-      });
+      void fetch("/api/conversations", { cache: "no-store" })
+        .then(async (res) => {
+          if (!res.ok) return null;
+          const data = await res.json().catch(() => null);
+          return Array.isArray(data?.items) ? data.items : null;
+        })
+        .then((items) => {
+          if (cancelled || !items) return;
+          setLiveConversations(items);
+          startTransition(() => {
+            router.refresh();
+          });
+        })
+        .catch(() => {});
     };
 
     const onVisibilityChange = () => {
@@ -72,12 +88,22 @@ export function MessagesHub({
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
+      cancelled = true;
       window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshConversations);
       window.removeEventListener("mahalle:refresh-conversations", refreshConversations as EventListener);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [router]);
+
+  const pinnedConversations = useMemo(
+    () => liveConversations.filter((conversation) => conversation.isPinned),
+    [liveConversations]
+  );
+  const regularConversations = useMemo(
+    () => liveConversations.filter((conversation) => !conversation.isPinned),
+    [liveConversations]
+  );
 
   const groupedConversations = regularConversations.reduce(
     (groups, conversation) => {
@@ -130,7 +156,7 @@ export function MessagesHub({
         </TabsList>
 
         <TabsContent value="chats" className="mt-3 space-y-2">
-          {conversations.length === 0 ? (
+          {liveConversations.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-amber-200 bg-white/95 px-4 py-7 text-center shadow-sm">
               <Sparkles className="mx-auto h-5 w-5 text-amber-600" />
               <p className="mt-2 text-sm text-zinc-500">Henüz konuşma yok.</p>
