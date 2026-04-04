@@ -1,7 +1,9 @@
 ﻿"use client";
 
+import { startTransition, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CheckCheck, MessageCircleMore, Pin, Plus, Search, Sparkles, UsersRound } from "lucide-react";
 
 import { MessagesUserSearch } from "@/components/messages-user-search";
@@ -46,8 +48,36 @@ export function MessagesHub({
   currentUserId: string;
   conversations: ConversationListItem[];
 }) {
+  const router = useRouter();
   const pinnedConversations = conversations.filter((conversation) => conversation.isPinned);
   const regularConversations = conversations.filter((conversation) => !conversation.isPinned);
+
+  useEffect(() => {
+    const refreshConversations = () => {
+      startTransition(() => {
+        router.refresh();
+      });
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshConversations();
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") refreshConversations();
+    }, 8000);
+
+    window.addEventListener("focus", refreshConversations);
+    window.addEventListener("mahalle:refresh-conversations", refreshConversations as EventListener);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshConversations);
+      window.removeEventListener("mahalle:refresh-conversations", refreshConversations as EventListener);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [router]);
 
   const groupedConversations = regularConversations.reduce(
     (groups, conversation) => {

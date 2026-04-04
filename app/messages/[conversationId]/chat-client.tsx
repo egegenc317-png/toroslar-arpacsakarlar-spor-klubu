@@ -3,7 +3,7 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Camera, Check, CheckCheck, FileText, Mic, Paperclip, Pin, PinOff, SendHorizonal, Smile, Sparkles, Square, X } from "lucide-react";
+import { Camera, Check, CheckCheck, FileText, Mic, Paperclip, Pin, PinOff, SendHorizonal, Smile, Sparkles, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -230,14 +230,11 @@ export function ChatClient({
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [viewportSettling, setViewportSettling] = useState(false);
-  const [recordingAudio, setRecordingAudio] = useState(false);
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [recordingWaveBars, setRecordingWaveBars] = useState<number[]>(() => buildAudioWaveBars(12));
-  const [pressRecordingMode, setPressRecordingMode] = useState(false);
-  const [recordingLocked, setRecordingLocked] = useState(false);
   const [audioPlaybackRates, setAudioPlaybackRates] = useState<Record<string, number>>({});
   const [listenedAudioIds, setListenedAudioIds] = useState<Record<string, boolean>>({});
+  const [composerHeight, setComposerHeight] = useState(88);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -250,20 +247,11 @@ export function ChatClient({
   const snapshotSignatureRef = useRef("");
   const shouldStickToBottomRef = useRef(true);
   const viewportSettleTimerRef = useRef<number | null>(null);
-  const audioRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioStreamRef = useRef<MediaStream | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const audioTimerRef = useRef<number | null>(null);
   const audioElementRefs = useRef<Record<string, HTMLAudioElement | null>>({});
-  const audioAnalyserRef = useRef<AnalyserNode | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioAnimationFrameRef = useRef<number | null>(null);
-  const pressRecordingStartedRef = useRef(false);
-  const suppressMicClickRef = useRef(false);
-  const pressStartYRef = useRef<number | null>(null);
   const notifyShellRefresh = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("mahalle:refresh-summary"));
+      window.dispatchEvent(new CustomEvent("mahalle:refresh-conversations"));
     }
   };
 
@@ -452,6 +440,21 @@ export function ChatClient({
   }, []);
 
   useEffect(() => {
+    const node = composerRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+
+    const updateComposerHeight = () => {
+      const nextHeight = Math.ceil(node.getBoundingClientRect().height);
+      setComposerHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+    };
+
+    updateComposerHeight();
+    const observer = new ResizeObserver(updateComposerHeight);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
 
     const visualViewport = window.visualViewport;
@@ -511,21 +514,6 @@ export function ChatClient({
 
   useEffect(() => {
     return () => {
-      if (audioAnimationFrameRef.current) {
-        window.cancelAnimationFrame(audioAnimationFrameRef.current);
-      }
-      if (audioContextRef.current) {
-        void audioContextRef.current.close();
-      }
-      if (audioTimerRef.current) {
-        window.clearInterval(audioTimerRef.current);
-      }
-      if (audioRecorderRef.current && audioRecorderRef.current.state !== "inactive") {
-        audioRecorderRef.current.stop();
-      }
-      if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       }
@@ -700,146 +688,6 @@ export function ChatClient({
     }
   };
 
-  const startAudioRecording = async () => {
-    if (recordingAudio || sending || uploadingFile) return;
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const preferredMimeTypes = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
-      const supportedMimeType = preferredMimeTypes.find((mimeType) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mimeType));
-      const recorder = new MediaRecorder(stream, supportedMimeType ? { mimeType: supportedMimeType } : undefined);
-
-      audioStreamRef.current = stream;
-      audioRecorderRef.current = recorder;
-      audioChunksRef.current = [];
-      setRecordingAudio(true);
-      setRecordingSeconds(0);
-      setRecordingWaveBars(buildAudioWaveBars(12));
-      setError(null);
-
-      const audioContext = new AudioContext();
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 64;
-      analyser.smoothingTimeConstant = 0.82;
-      const source = audioContext.createMediaStreamSource(stream);
-      source.connect(analyser);
-      audioContextRef.current = audioContext;
-      audioAnalyserRef.current = analyser;
-
-      const frequencyData = new Uint8Array(analyser.frequencyBinCount);
-      const tickWaveform = () => {
-        const currentAnalyser = audioAnalyserRef.current;
-        if (!currentAnalyser) return;
-        currentAnalyser.getByteFrequencyData(frequencyData);
-        const bucketCount = 18;
-        const bucketSize = Math.max(1, Math.floor(frequencyData.length / bucketCount));
-        const nextBars = Array.from({ length: bucketCount }, (_, index) => {
-          const start = index * bucketSize;
-          const end = Math.min(frequencyData.length, start + bucketSize);
-          let sum = 0;
-          for (let cursor = start; cursor < end; cursor += 1) {
-            sum += frequencyData[cursor];
-          }
-          const average = sum / Math.max(1, end - start);
-          return Math.max(6, Math.min(30, Math.round((average / 255) * 28)));
-        });
-        setRecordingWaveBars(nextBars);
-        audioAnimationFrameRef.current = window.requestAnimationFrame(tickWaveform);
-      };
-      audioAnimationFrameRef.current = window.requestAnimationFrame(tickWaveform);
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      recorder.start();
-      audioTimerRef.current = window.setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
-      }, 1000);
-    } catch {
-      setError("Mikrofon açılamadı. Tarayıcı iznini kontrol et.");
-    }
-  };
-
-  const stopAudioRecording = async (sendRecording: boolean) => {
-    const recorder = audioRecorderRef.current;
-
-    if (audioAnimationFrameRef.current) {
-      window.cancelAnimationFrame(audioAnimationFrameRef.current);
-      audioAnimationFrameRef.current = null;
-    }
-
-    if (audioContextRef.current) {
-      void audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    audioAnalyserRef.current = null;
-
-    if (audioTimerRef.current) {
-      window.clearInterval(audioTimerRef.current);
-      audioTimerRef.current = null;
-    }
-
-    if (!recorder) {
-      setRecordingAudio(false);
-      setRecordingSeconds(0);
-      return;
-    }
-
-    const finalBlob = await new Promise<Blob | null>((resolve) => {
-      recorder.onstop = () => {
-        const mimeType = recorder.mimeType || "audio/webm";
-        const blob = audioChunksRef.current.length ? new Blob(audioChunksRef.current, { type: mimeType }) : null;
-        resolve(blob);
-      };
-      recorder.stop();
-    });
-
-    audioRecorderRef.current = null;
-    audioChunksRef.current = [];
-
-    if (audioStreamRef.current) {
-      audioStreamRef.current.getTracks().forEach((track) => track.stop());
-      audioStreamRef.current = null;
-    }
-
-    const finalDuration = recordingSeconds;
-    setRecordingAudio(false);
-    setRecordingSeconds(0);
-    setRecordingWaveBars(buildAudioWaveBars(12));
-    setPressRecordingMode(false);
-    setRecordingLocked(false);
-    pressRecordingStartedRef.current = false;
-    pressStartYRef.current = null;
-
-    if (!sendRecording || !finalBlob || finalBlob.size === 0) return;
-
-    const extension = finalBlob.type.includes("mp4") || finalBlob.type.includes("aac") ? "m4a" : finalBlob.type.includes("ogg") ? "ogg" : "webm";
-    const audioFile = new File([finalBlob], `ses-kaydi-${Date.now()}.${extension}`, { type: finalBlob.type || "audio/webm" });
-    await sendFile(audioFile, { viewOnce: false, durationSeconds: finalDuration });
-  };
-
-  const beginPressRecording = async () => {
-    if (recordingAudio || sending || uploadingFile) return;
-    suppressMicClickRef.current = true;
-    pressRecordingStartedRef.current = true;
-    setPressRecordingMode(true);
-    setRecordingLocked(false);
-    await startAudioRecording();
-  };
-
-  const finishPressRecording = async (sendRecording: boolean) => {
-    if (!pressRecordingStartedRef.current) return;
-    if (recordingLocked) {
-      pressRecordingStartedRef.current = false;
-      pressStartYRef.current = null;
-      return;
-    }
-    await stopAudioRecording(sendRecording);
-  };
-
   const openCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -940,6 +788,9 @@ export function ChatClient({
     });
   };
 
+  const composerBottom = keyboardInset ? keyboardInset + 4 : 4;
+  const scrollBottomPadding = Math.max(72, composerHeight + composerBottom + 12);
+
   return (
     <div className="space-y-1 sm:space-y-2">
       <div className="relative overflow-hidden rounded-[18px] border border-amber-200 bg-[linear-gradient(170deg,#fff7ea_0%,#ffeaca_45%,#fff6e7_100%)] p-1.5 sm:rounded-[22px] sm:p-2.5">
@@ -982,12 +833,10 @@ export function ChatClient({
           ref={scrollRef}
           className="relative z-10 max-h-[64vh] space-y-1 overflow-y-auto rounded-[18px] bg-white/35 p-1 sm:max-h-[62vh] sm:space-y-1.5 sm:rounded-2xl sm:p-2.5"
           style={
-            keyboardOpen
-              ? {
-                  maxHeight: `calc(100svh - ${Math.min(320, keyboardInset + 220)}px)`,
-                  paddingBottom: `${Math.min(28, Math.max(10, keyboardInset * 0.08))}px`
-                }
-              : undefined
+            {
+              maxHeight: keyboardOpen ? `calc(100svh - ${Math.min(420, keyboardInset + composerHeight + 190)}px)` : undefined,
+              paddingBottom: `${scrollBottomPadding}px`
+            }
           }
         >
           {messages.length === 0 ? (
@@ -1187,16 +1036,13 @@ export function ChatClient({
       {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
 
       <div
+        ref={composerRef}
         className="sticky bottom-1 z-30 pb-[env(safe-area-inset-bottom)]"
         style={
-          keyboardInset
-            ? {
-                bottom: `${keyboardInset + 4}px`,
-                transition: viewportSettling ? "none" : "bottom 180ms ease-out, transform 180ms ease-out"
-              }
-            : {
-                transition: "bottom 180ms ease-out, transform 180ms ease-out"
-              }
+          {
+            bottom: `${composerBottom}px`,
+            transition: viewportSettling ? "none" : "bottom 180ms ease-out, transform 180ms ease-out"
+          }
         }
       >
         {mentionOpen ? (
@@ -1296,55 +1142,6 @@ export function ChatClient({
           placeholder={`${peerName} için bir mesaj yaz...`}
           className="h-9 min-w-0 rounded-full border-amber-200 bg-white px-2.5 text-[13px] focus-visible:ring-orange-300 sm:h-10 sm:px-3 sm:text-sm"
         />
-
-        <button
-          type="button"
-          onClick={() => {
-            if (suppressMicClickRef.current) {
-              suppressMicClickRef.current = false;
-              return;
-            }
-            void (recordingAudio ? stopAudioRecording(true) : startAudioRecording());
-          }}
-          onPointerDown={(event) => {
-            if (event.pointerType === "mouse" || event.pointerType === "touch" || event.pointerType === "pen") {
-              event.preventDefault();
-              pressStartYRef.current = event.clientY;
-              event.currentTarget.setPointerCapture?.(event.pointerId);
-              void beginPressRecording();
-            }
-          }}
-          onPointerMove={(event) => {
-            if (!pressRecordingStartedRef.current || recordingLocked) return;
-            const startY = pressStartYRef.current;
-            if (typeof startY !== "number") return;
-            if (startY - event.clientY > 56) {
-              setRecordingLocked(true);
-            }
-          }}
-          onPointerUp={(event) => {
-            if (pressRecordingStartedRef.current && (event.pointerType === "mouse" || event.pointerType === "touch" || event.pointerType === "pen")) {
-              event.preventDefault();
-              void finishPressRecording(true);
-            }
-          }}
-          onPointerLeave={(event) => {
-            if (pressRecordingStartedRef.current && (event.pointerType === "mouse" || event.pointerType === "touch" || event.pointerType === "pen")) {
-              event.preventDefault();
-              void finishPressRecording(false);
-            }
-          }}
-          onPointerCancel={() => {
-            if (pressRecordingStartedRef.current) {
-              void finishPressRecording(false);
-            }
-          }}
-          disabled={sending || uploadingFile}
-          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition disabled:opacity-50 sm:h-9 sm:w-9 ${recordingAudio ? "bg-red-500 text-white hover:bg-red-600" : "text-zinc-500 hover:bg-amber-50 hover:text-amber-700"}`}
-          aria-label={recordingAudio ? "Ses kaydını bitir ve gönder" : "Ses kaydı başlat veya basili tut"}
-        >
-          {recordingAudio ? <Square className="h-4 w-4" /> : <Mic className="h-4.5 w-4.5" />}
-        </button>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
@@ -1368,50 +1165,6 @@ export function ChatClient({
           <SendHorizonal className="h-4 w-4" />
         </Button>
       </form>
-      {recordingAudio ? (
-        <div className="mt-1 flex items-center justify-between rounded-2xl border border-red-200 bg-red-50/95 px-3 py-2 text-xs text-red-700 shadow-sm">
-          <div className="min-w-0 flex-1">
-            <span className="inline-flex items-center gap-2 font-semibold">
-              <span className="h-2 w-2 rounded-full bg-red-500" />
-              Ses kaydı sürüyor • {Math.floor(recordingSeconds / 60).toString().padStart(2, "0")}:{(recordingSeconds % 60).toString().padStart(2, "0")}
-            </span>
-            <p className="mt-1 text-[11px] text-red-600/90">
-              {recordingLocked
-                ? "Kayit kilitlendi. Parmagi birakabilirsin."
-                : pressRecordingMode
-                  ? "Yukari kaydirirsan kilitlenir, birakinca gonderilir."
-                  : "Tekrar dokunarak gonderebilir veya iptal edebilirsin."}
-            </p>
-            <div className="mt-2 flex h-8 items-end gap-1 overflow-hidden rounded-full bg-white/70 px-2 py-1">
-              {recordingWaveBars.map((barHeight, index) => (
-                <span
-                  key={`recording-bar-${index}`}
-                  className="w-1 rounded-full bg-gradient-to-t from-red-500 to-orange-400"
-                  style={{ height: `${barHeight}px` }}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="ml-3 flex items-center gap-2">
-            {recordingLocked ? (
-              <button
-                type="button"
-                onClick={() => void stopAudioRecording(true)}
-                className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 font-semibold text-emerald-700 hover:bg-emerald-50"
-              >
-                Gönder
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => void stopAudioRecording(false)}
-              className="rounded-full border border-red-200 bg-white px-2.5 py-1 font-semibold text-red-700 hover:bg-red-100"
-            >
-              İptal
-            </button>
-          </div>
-        </div>
-      ) : null}
       </div>
 
       {previewImage ? (
