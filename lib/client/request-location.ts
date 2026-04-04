@@ -5,6 +5,7 @@ export type BrowserPermissionState = "granted" | "prompt" | "denied" | "unsuppor
 type LocationResult = {
   lat: number;
   lng: number;
+  accuracy?: number;
   permissionState: BrowserPermissionState;
 };
 
@@ -28,6 +29,16 @@ function geolocationAttempt(options: PositionOptions) {
   });
 }
 
+function ensureSecureContext() {
+  if (typeof window === "undefined") return;
+
+  const host = window.location.hostname;
+  const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "::1";
+  if (window.isSecureContext || isLocalHost) return;
+
+  throw new Error("Konum izni bu cihazda sadece guvenli baglantida calisir. Siteyi https:// ile acip tekrar dene.");
+}
+
 function mapLocationError(error: GeolocationPositionError | null, permissionState: BrowserPermissionState) {
   if (error?.code === 1 || permissionState === "denied") {
     return "Konum izni kapalı görünüyor. Tarayıcı veya telefon ayarlarından konum iznini açıp tekrar dene.";
@@ -45,40 +56,48 @@ function mapLocationError(error: GeolocationPositionError | null, permissionStat
 }
 
 export async function requestPreciseLocation(): Promise<LocationResult> {
+  ensureSecureContext();
+
   if (!navigator.geolocation) {
     throw new Error("Tarayıcın konum servisini desteklemiyor.");
   }
 
   const permissionState = await getPermissionState();
 
-  try {
-    const precise = await geolocationAttempt({
+  const attempts: PositionOptions[] = [
+    {
       enableHighAccuracy: true,
+      timeout: 20000,
+      maximumAge: 30_000
+    },
+    {
+      enableHighAccuracy: false,
       timeout: 15000,
-      maximumAge: 0
-    });
+      maximumAge: 300_000
+    },
+    {
+      enableHighAccuracy: false,
+      timeout: 10000,
+      maximumAge: Infinity
+    }
+  ];
 
-    return {
-      lat: precise.coords.latitude,
-      lng: precise.coords.longitude,
-      permissionState
-    };
-  } catch (firstError) {
+  let lastError: GeolocationPositionError | null = null;
+
+  for (const options of attempts) {
     try {
-      const fallback = await geolocationAttempt({
-        enableHighAccuracy: false,
-        timeout: 12000,
-        maximumAge: 0
-      });
+      const result = await geolocationAttempt(options);
 
       return {
-        lat: fallback.coords.latitude,
-        lng: fallback.coords.longitude,
+        lat: result.coords.latitude,
+        lng: result.coords.longitude,
+        accuracy: result.coords.accuracy,
         permissionState
       };
-    } catch (secondError) {
-      const error = (secondError || firstError) as GeolocationPositionError | null;
-      throw new Error(mapLocationError(error, permissionState));
+    } catch (error) {
+      lastError = error as GeolocationPositionError | null;
     }
   }
+
+  throw new Error(mapLocationError(lastError, permissionState));
 }

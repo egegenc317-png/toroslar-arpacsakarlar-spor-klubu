@@ -63,6 +63,19 @@ function getMentionToken(me: { username?: string | null; name?: string | null })
   return null;
 }
 
+function getSafeParticipantName(
+  participant: { name?: string | null } | null | undefined,
+  participantId: string | null | undefined,
+  userMap: Map<string, string>
+) {
+  if (participant?.name) return participant.name;
+  if (participantId) {
+    const mapped = userMap.get(participantId);
+    if (mapped) return mapped;
+  }
+  return "Bilinmeyen kullanıcı";
+}
+
 export default async function MessagesPage() {
   const session = await auth();
   if (!session) redirect("/auth/login");
@@ -97,7 +110,13 @@ export default async function MessagesPage() {
     .map((c) => {
     const isGroup = c.conversationType === "GROUP";
     const members = (c.participantIds || []).map((id) => userMap.get(id)).filter(Boolean) as string[];
-    const peer = isGroup ? c.groupName || c.contextTitle || "Grup Sohbeti" : c.buyerId === session.user.id ? c.seller.name : c.buyer.name;
+    const buyerName = getSafeParticipantName(c.buyer, c.buyerId, userMap);
+    const sellerName = getSafeParticipantName(c.seller, c.sellerId, userMap);
+    const peer = isGroup
+      ? c.groupName || c.contextTitle || "Grup Sohbeti"
+      : c.buyerId === session.user.id
+        ? sellerName
+        : buyerName;
     const title = isGroup ? `${members.length} üye` : c.listing?.title || c.contextTitle || "Direkt Sohbet";
     const last = lastMap.get(c.id);
     const preview = last?.body || "Sohbeti ac ve yazismaya basla";

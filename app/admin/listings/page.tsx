@@ -14,6 +14,7 @@ export default async function AdminListingsPage() {
   if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MODERATOR")) redirect("/");
 
   const listings = await prisma.listing.findMany({
+    where: { status: "ACTIVE" },
     orderBy: { createdAt: "desc" },
     take: 50,
     include: { user: { select: { id: true, name: true } } }
@@ -23,6 +24,11 @@ export default async function AdminListingsPage() {
     <Card>
       <CardHeader><CardTitle>İlan Moderasyonu</CardTitle></CardHeader>
       <CardContent className="space-y-2">
+        {listings.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Yayında olan moderasyon bekleyen ilan kalmadı.
+          </p>
+        ) : null}
         {listings.map((l: AdminListing) => (
           <div key={l.id} className="rounded-md border p-3 text-sm">
             <p><Link href={`/listings/${l.id}`} className="font-medium hover:underline">{l.title}</Link> - {l.status} - {l.user?.name || "Bilinmeyen kullanıcı"}</p>

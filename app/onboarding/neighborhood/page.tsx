@@ -50,7 +50,14 @@ export default function NeighborhoodOnboardingPage() {
       });
 
       const raw = await res.text();
-      const data = raw ? JSON.parse(raw) : {};
+      let data: Record<string, string> = {};
+      if (raw) {
+        try {
+          data = JSON.parse(raw) as Record<string, string>;
+        } catch {
+          data = {};
+        }
+      }
       setLoading(false);
 
       if (!res.ok) {
@@ -66,7 +73,7 @@ export default function NeighborhoodOnboardingPage() {
       router.refresh();
     } catch (err) {
       setLoading(false);
-      setMessage(err instanceof Error ? err.message : "Konum alınamadı.");
+      setMessage(err instanceof Error ? err.message : "Konum alinamadi.");
     }
   };
 

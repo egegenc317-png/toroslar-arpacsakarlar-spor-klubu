@@ -13,8 +13,8 @@ type NeighborhoodRecord = {
 };
 
 function getEffectiveNeighborhoodRadiusKm(radiusKm?: number | null) {
-  const safeRadius = typeof radiusKm === "number" && radiusKm > 0 ? radiusKm : 3;
-  return Math.min(Math.max(safeRadius, 1.5), 4);
+  const safeRadius = typeof radiusKm === "number" && radiusKm > 0 ? radiusKm : 15;
+  return Math.min(Math.max(safeRadius, 1.5), 25);
 }
 
 function toRad(v: number) {
