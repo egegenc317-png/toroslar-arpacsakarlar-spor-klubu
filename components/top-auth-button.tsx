@@ -16,6 +16,10 @@ type MessageAlert = {
   isGroup?: boolean;
 };
 
+type NotificationsPayload = {
+  messageAlerts?: MessageAlert[];
+};
+
 export function TopAuthButton({
   isLoggedIn,
   userId,
@@ -36,7 +40,7 @@ export function TopAuthButton({
   const [toastAlert, setToastAlert] = useState<MessageAlert | null>(null);
   const storageKey = "mahalle:shell-unread-count";
   const lastUnreadCountRef = useRef(unreadCount);
-  const lastMessageNotificationKeyRef = useRef("");
+  const knownMessageNotificationKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     setLiveUnreadCount(unreadCount);
@@ -56,10 +60,20 @@ export function TopAuthButton({
     let notificationsEventSource: EventSource | null = null;
     let toastTimer: number | null = null;
 
+    const getNotificationKey = (messageAlert: MessageAlert) => `${messageAlert.id}:${messageAlert.createdAt}`;
+
+    const rememberAlerts = (messageAlerts: MessageAlert[]) => {
+      const nextKeys = new Set(knownMessageNotificationKeysRef.current);
+      for (const alert of messageAlerts) {
+        nextKeys.add(getNotificationKey(alert));
+      }
+      knownMessageNotificationKeysRef.current = nextKeys;
+    };
+
     const showMessageNotification = (messageAlert: MessageAlert) => {
-      const notificationKey = `${messageAlert.id}:${messageAlert.createdAt}`;
-      if (lastMessageNotificationKeyRef.current === notificationKey) return;
-      lastMessageNotificationKeyRef.current = notificationKey;
+      const notificationKey = getNotificationKey(messageAlert);
+      if (knownMessageNotificationKeysRef.current.has(notificationKey)) return;
+      knownMessageNotificationKeysRef.current.add(notificationKey);
 
       setToastAlert(messageAlert);
       if (toastTimer) window.clearTimeout(toastTimer);
@@ -82,6 +96,30 @@ export function TopAuthButton({
       }
     };
 
+    const consumeNotificationSnapshot = (payload: NotificationsPayload, notifyFreshOnly: boolean) => {
+      const messageAlerts = Array.isArray(payload?.messageAlerts) ? payload.messageAlerts : [];
+      window.dispatchEvent(new CustomEvent("mahalle:refresh-conversations"));
+
+      if (!messageAlerts.length) return;
+
+      if (!notifyFreshOnly) {
+        rememberAlerts(messageAlerts);
+        return;
+      }
+
+      const freshAlerts = messageAlerts.filter((alert) => !knownMessageNotificationKeysRef.current.has(getNotificationKey(alert)));
+      if (!freshAlerts.length) {
+        rememberAlerts(messageAlerts);
+        return;
+      }
+
+      for (const alert of freshAlerts) {
+        showMessageNotification(alert);
+      }
+
+      rememberAlerts(messageAlerts);
+    };
+
     const maybeRefreshConversationsAndNotify = async (nextUnreadCount: number) => {
       const previousUnreadCount = lastUnreadCountRef.current;
       lastUnreadCountRef.current = nextUnreadCount;
@@ -93,9 +131,7 @@ export function TopAuthButton({
         const res = await fetch("/api/notifications/live", { cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
-        const firstMessageAlert = Array.isArray(data?.messageAlerts) ? data.messageAlerts[0] : null;
-        if (!firstMessageAlert) return;
-        showMessageNotification(firstMessageAlert);
+        consumeNotificationSnapshot(data, true);
       } catch {
         // Bildirim fetch'i hata verse de üst bar akmaya devam etsin.
       }
@@ -138,6 +174,20 @@ export function TopAuthButton({
 
     loadSummary();
 
+    void fetch("/api/notifications/live", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return res.json().catch(() => null);
+      })
+      .then((data) => {
+        if (!cancelled && data) {
+          consumeNotificationSnapshot(data, false);
+        }
+      })
+      .catch(() => {
+        // ilk snapshot sessizce atlanabilir
+      });
+
     try {
       eventSource = new EventSource("/api/me/shell-summary/stream");
       eventSource.addEventListener("summary", (event) => {
@@ -168,12 +218,8 @@ export function TopAuthButton({
       notificationsEventSource.addEventListener("notifications", (event) => {
         try {
           const data = JSON.parse((event as MessageEvent).data);
-          const firstMessageAlert = Array.isArray(data?.messageAlerts) ? data.messageAlerts[0] : null;
           if (!cancelled) {
-            window.dispatchEvent(new CustomEvent("mahalle:refresh-conversations"));
-            if (firstMessageAlert) {
-              showMessageNotification(firstMessageAlert);
-            }
+            consumeNotificationSnapshot(data, true);
           }
         } catch {
           // ignore malformed notification payloads

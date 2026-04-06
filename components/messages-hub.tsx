@@ -51,6 +51,7 @@ export function MessagesHub({
 
   useEffect(() => {
     let cancelled = false;
+    let eventSource: EventSource | null = null;
 
     const refreshConversations = () => {
       void fetch("/api/conversations", { cache: "no-store" })
@@ -67,6 +68,29 @@ export function MessagesHub({
     };
 
     refreshConversations();
+
+    if (typeof window !== "undefined" && "EventSource" in window) {
+      try {
+        eventSource = new EventSource("/api/notifications/stream");
+        eventSource.addEventListener("notifications", (event) => {
+          try {
+            const data = JSON.parse((event as MessageEvent).data);
+            if (cancelled) return;
+            if (Array.isArray(data?.messageAlerts)) {
+              refreshConversations();
+            }
+          } catch {
+            // polling fallback devam eder
+          }
+        });
+        eventSource.onerror = () => {
+          eventSource?.close();
+          eventSource = null;
+        };
+      } catch {
+        // SSE desteklenmiyorsa interval fallback yeterli
+      }
+    }
 
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") refreshConversations();
@@ -87,6 +111,7 @@ export function MessagesHub({
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      eventSource?.close();
       window.removeEventListener("focus", refreshConversations);
       window.removeEventListener("pageshow", onPageShow);
       window.removeEventListener("mahalle:refresh-conversations", refreshConversations as EventListener);
