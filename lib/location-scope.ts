@@ -12,6 +12,11 @@ type NeighborhoodRecord = {
   radiusKm?: number;
 };
 
+function getEffectiveNeighborhoodRadiusKm(radiusKm?: number | null) {
+  const safeRadius = typeof radiusKm === "number" && radiusKm > 0 ? radiusKm : 15;
+  return Math.min(Math.max(safeRadius, 1.5), 25);
+}
+
 export async function resolveScopeNeighborhoodIds(
   neighborhoodId?: string | null,
   locationScope?: string | null
@@ -74,6 +79,17 @@ export async function validatePointInUserScope(input: {
   const nearest = ranked[0];
   if (!nearest) {
     return { ok: false, error: "Konum dogrulanamadi." };
+  }
+
+  const currentNeighborhood = scopeContext.currentNeighborhood;
+  if (currentNeighborhood) {
+    const currentDistance = distanceKm(input.lat, input.lng, currentNeighborhood.lat, currentNeighborhood.lng);
+    const currentRadiusKm = getEffectiveNeighborhoodRadiusKm(currentNeighborhood.radiusKm);
+    if (currentDistance <= currentRadiusKm) {
+      if (scopeContext.ids.includes(currentNeighborhood.id)) {
+        return { ok: true, matchedNeighborhoodId: currentNeighborhood.id };
+      }
+    }
   }
 
   const radiusKm = typeof nearest.radiusKm === "number" ? nearest.radiusKm : 10;
