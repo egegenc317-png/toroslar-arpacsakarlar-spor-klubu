@@ -50,6 +50,10 @@ model User {
   auditLogs           AuditLog[]        @relation("AuditActor")
   accounts            Account[]
   sessions            Session[]
+
+  @@index([neighborhoodId])
+  @@index([lastActiveAt])
+  @@index([createdAt])
 }
 
 model Neighborhood {
@@ -90,6 +94,9 @@ model Listing {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime
   conversations  Conversation[]
+
+  @@index([neighborhoodId, status, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Conversation {
@@ -119,6 +126,10 @@ model Conversation {
   messages           Message[]
 
   @@unique([listingId, buyerId, sellerId])
+  @@index([buyerId, createdAt])
+  @@index([sellerId, createdAt])
+  @@index([conversationType, createdAt])
+  @@index([contextType, createdAt])
 }
 
 model Message {
@@ -131,6 +142,9 @@ model Message {
   viewOnceConsumedByBuyerAt  DateTime?
   viewOnceConsumedBySellerAt DateTime?
   createdAt                  DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([senderId, createdAt])
 }
 
 model Report {
@@ -143,6 +157,9 @@ model Report {
   details    String?
   status     String   @default("OPEN")
   createdAt  DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@index([reporterId, createdAt])
 }
 
 model BoardPost {
@@ -160,6 +177,9 @@ model BoardPost {
   locationLng    Float?
   viewCount      Int          @default(0)
   createdAt      DateTime     @default(now())
+
+  @@index([neighborhoodId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model FlowPost {
@@ -178,6 +198,11 @@ model FlowPost {
   reposts        FlowPost[]     @relation("FlowReposts")
   likes          FlowPostLike[]
   createdAt      DateTime       @default(now())
+
+  @@index([neighborhoodId, createdAt])
+  @@index([userId, createdAt])
+  @@index([parentPostId, createdAt])
+  @@index([repostOfPostId, createdAt])
 }
 
 model FlowPostLike {
@@ -189,6 +214,7 @@ model FlowPostLike {
   createdAt DateTime @default(now())
 
   @@unique([postId, userId])
+  @@index([userId, createdAt])
 }
 
 model Poll {
@@ -201,6 +227,9 @@ model Poll {
   options        String
   createdAt      DateTime     @default(now())
   votes          PollVote[]
+
+  @@index([neighborhoodId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model PollVote {
@@ -211,6 +240,9 @@ model PollVote {
   userIdIndex String   @default("")
   optionIndex Int
   createdAt   DateTime @default(now())
+
+  @@index([pollId, createdAt])
+  @@index([userIdIndex, createdAt])
 }
 
 model UserRating {
@@ -222,6 +254,9 @@ model UserRating {
   score        Int
   createdAt    DateTime @default(now())
   updatedAt    DateTime
+
+  @@index([targetUserId, createdAt])
+  @@index([raterUserId, createdAt])
 }
 
 model UserWeeklyUsage {
@@ -234,6 +269,7 @@ model UserWeeklyUsage {
   updatedAt DateTime
 
   @@unique([userId, weekKey])
+  @@index([weekKey, seconds])
 }
 
 model SiteVisit {
@@ -246,6 +282,8 @@ model SiteVisit {
   updatedAt DateTime
 
   @@unique([visitorId, dateKey])
+  @@index([dateKey, createdAt])
+  @@index([userId, dateKey])
 }
 
 model SitePageView {
@@ -260,6 +298,9 @@ model SitePageView {
   updatedAt      DateTime
 
   @@unique([visitorId, dateKey, path])
+  @@index([dateKey, path])
+  @@index([neighborhoodId, dateKey])
+  @@index([userId, dateKey])
 }
 
 model GroupInvite {
@@ -271,6 +312,9 @@ model GroupInvite {
   createdAt       DateTime  @default(now())
   expiresAt       DateTime
   revokedAt       DateTime?
+
+  @@index([conversationId, expiresAt])
+  @@index([expiresAt, revokedAt])
 }
 
 model EmailVerification {
@@ -279,6 +323,8 @@ model EmailVerification {
   expiresAt  DateTime
   verifiedAt DateTime?
   attempts   Int       @default(0)
+
+  @@index([expiresAt, verifiedAt])
 }
 
 model RateLimitEntry {
@@ -296,6 +342,10 @@ model AuditLog {
   targetId    String?
   meta        String?
   createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([targetType, createdAt])
 }
 
 model Account {
@@ -322,6 +372,8 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expires])
 }
 
 model VerificationToken {

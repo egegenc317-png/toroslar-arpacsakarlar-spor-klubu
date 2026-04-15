@@ -66,6 +66,34 @@ export default async function MapPage() {
   const neighborhoodRadiusKm = getEffectiveNeighborhoodRadiusKm(neighborhood?.radiusKm);
   const neighborhoodCenter = neighborhood ? await resolveNeighborhoodCenter(neighborhood) : null;
 
+  const [listings, boardPosts] = await Promise.all([
+    prisma.listing.findMany({
+      where: {
+        status: "ACTIVE",
+        neighborhoodId,
+        OR: [
+          { locationLat: { not: null } },
+          { locationLng: { not: null } },
+          { locationText: { not: null } }
+        ]
+      },
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "desc" }
+    }),
+    prisma.boardPost.findMany({
+      where: {
+        neighborhoodId,
+        OR: [
+          { locationLat: { not: null } },
+          { locationLng: { not: null } },
+          { locationText: { not: null } }
+        ]
+      },
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "desc" }
+    })
+  ]);
+
   const isInsideCurrentNeighborhoodRadius = (lat?: number | null, lng?: number | null) => {
     if (
       typeof lat !== "number" ||
@@ -108,7 +136,59 @@ export default async function MapPage() {
     )
   ).filter(Boolean);
 
-  const mapItems = businessItems;
+  const listingItems = listings
+    .filter((listing) => {
+      if (typeof listing.locationLat === "number" && typeof listing.locationLng === "number") {
+        return isInsideCurrentNeighborhoodRadius(listing.locationLat, listing.locationLng);
+      }
+      return true; // Include listings with locationText even if no coordinates
+    })
+    .map((listing) => {
+      const photos = listing.photos ? JSON.parse(listing.photos) as string[] : [];
+      return {
+        id: `listing-${listing.id}`,
+        kind: "LISTING" as const,
+        type: listing.type,
+        title: listing.title,
+        body: listing.description,
+        userName: listing.user.name,
+        href: `/listings/${listing.id}`,
+        createdAt: new Date(listing.createdAt).toISOString(),
+        locationText: listing.locationText ?? null,
+        locationLat: listing.locationLat ?? null,
+        locationLng: listing.locationLng ?? null,
+        imageUrl: photos.length > 0 ? photos[0] : null,
+        businessCategory: listing.category ?? null
+      };
+    });
+
+  const boardPostItems = boardPosts
+    .filter((post) => {
+      if (typeof post.locationLat === "number" && typeof post.locationLng === "number") {
+        return isInsideCurrentNeighborhoodRadius(post.locationLat, post.locationLng);
+      }
+      return true; // Include posts with locationText even if no coordinates
+    })
+    .map((post) => {
+      const photos = post.photos ? JSON.parse(post.photos) as string[] : [];
+      return {
+        id: `board-${post.id}`,
+        kind: "BOARD" as const,
+        type: post.type,
+        title: post.title,
+        body: post.body,
+        userName: post.user.name,
+        href: `/board/${post.id}`,
+        createdAt: new Date(post.createdAt).toISOString(),
+        locationText: post.locationText ?? null,
+        locationLat: post.locationLat ?? null,
+        locationLng: post.locationLng ?? null,
+        imageUrl: photos.length > 0 ? photos[0] : null,
+        businessCategory: null
+      };
+    });
+
+  const mapItems = [...businessItems, ...listingItems, ...boardPostItems];
 
   return (
     <div className="space-y-4">
@@ -120,17 +200,17 @@ export default async function MapPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-sm text-zinc-600">
-            {`${neighborhood?.city} / ${neighborhood?.district} / ${neighborhood?.name} mahallesi için sadece işletme noktaları gösteriliyor.`}
+            {`${neighborhood?.city} / ${neighborhood?.district} / ${neighborhood?.name} mahallesi için işletmeler, ilanlar ve duyurular gösteriliyor.`}
           </p>
           <p className="text-xs text-zinc-500">
-            Konum yenileyince harita sadece geçtiğin mahallenin işletmelerine göre güncellenir.
+            Konum yenileyince harita sadece geçtiğin mahallenin işletme, ilan ve duyuru noktalarına göre güncellenir.
           </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Mahallendeki İşletmeler ({mapItems.length})</CardTitle>
+          <CardTitle>Mahalle Haritası ({mapItems.length})</CardTitle>
         </CardHeader>
         <CardContent className="p-3 sm:p-6">
           <UnifiedNeighborhoodMap
