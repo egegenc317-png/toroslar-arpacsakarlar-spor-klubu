@@ -3,7 +3,24 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Camera, Check, CheckCheck, FileText, Mic, Paperclip, Pin, PinOff, SendHorizonal, Smile, Sparkles, X } from "lucide-react";
+import {
+  BadgeCheck,
+  Camera,
+  Check,
+  CheckCheck,
+  ChevronDown,
+  FileText,
+  Lock,
+  Mic,
+  Paperclip,
+  Pin,
+  PinOff,
+  SendHorizonal,
+  Smile,
+  Sparkles,
+  X,
+  Zap
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,6 +117,21 @@ function formatDateChip(dateString: string) {
   });
 }
 
+function formatRelativeStamp(dateString?: string | null) {
+  if (!dateString) return "Az once";
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "Az once";
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+
+  if (diffMinutes < 1) return "Simdi";
+  if (diffMinutes < 60) return `${diffMinutes} dk once`;
+  if (diffMinutes < 1440) return `${Math.round(diffMinutes / 60)} sa once`;
+  return `${Math.round(diffMinutes / 1440)} gun once`;
+}
+
 function shouldRenderDateChip(currentDate: string, previousDate?: string) {
   if (!previousDate) return true;
 
@@ -111,6 +143,16 @@ function shouldRenderDateChip(currentDate: string, previousDate?: string) {
     current.getMonth() !== previous.getMonth() ||
     current.getDate() !== previous.getDate()
   );
+}
+
+function isSameMessageCluster(current?: Message | null, previous?: Message | null) {
+  if (!current || !previous) return false;
+  if (current.senderId !== previous.senderId) return false;
+  if (parseSystemMessage(current.body) || parseSystemMessage(previous.body)) return false;
+
+  const currentTime = new Date(current.createdAt).getTime();
+  const previousTime = new Date(previous.createdAt).getTime();
+  return Math.abs(currentTime - previousTime) < 5 * 60 * 1000;
 }
 
 const FILE_MESSAGE_PREFIX = "__FILE__|";
@@ -246,6 +288,7 @@ export function ChatClient({
   const [audioPlaybackRates, setAudioPlaybackRates] = useState<Record<string, number>>({});
   const [listenedAudioIds, setListenedAudioIds] = useState<Record<string, boolean>>({});
   const [composerHeight, setComposerHeight] = useState(88);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -448,7 +491,16 @@ export function ChatClient({
     const container = scrollRef.current;
     if (!container || !shouldStickToBottomRef.current) return;
     container.scrollTop = container.scrollHeight;
+    setShowJumpToLatest(false);
   }, [messages]);
+
+  const scrollToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const container = scrollRef.current;
+    if (!container) return;
+    shouldStickToBottomRef.current = true;
+    container.scrollTo({ top: container.scrollHeight, behavior });
+    setShowJumpToLatest(false);
+  }, []);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -457,6 +509,7 @@ export function ChatClient({
     const updateStickyState = () => {
       const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
       shouldStickToBottomRef.current = distanceFromBottom < 96;
+      setShowJumpToLatest(distanceFromBottom > 220);
     };
 
     updateStickyState();
@@ -814,6 +867,12 @@ export function ChatClient({
 
   const composerBottom = keyboardInset ? keyboardInset + 4 : 4;
   const scrollBottomPadding = Math.max(72, composerHeight + composerBottom + 12);
+  const quickReactionSet = QUICK_EMOJIS.slice(30, 36);
+  const statusSummary = isGroup
+    ? `${mentionUsers.length || 1} kisilik canli kanal`
+    : peerLastSeenAt
+      ? `Son gorulme ${formatRelativeStamp(peerLastSeenAt)}`
+      : "Canli senkron aktif";
 
   return (
     <div className="space-y-0 bg-[#efeae2]">
@@ -826,20 +885,36 @@ export function ChatClient({
           backgroundSize: "24px 24px"
         }}
       >
+        <div className="relative z-10 mx-2 mt-2 flex flex-wrap gap-2 sm:mx-3">
+          <span className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/82 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 shadow-sm backdrop-blur">
+            <Zap className="h-3.5 w-3.5 text-orange-500" />
+            Canli sync
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/82 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 shadow-sm backdrop-blur">
+            <Lock className="h-3.5 w-3.5 text-orange-500" />
+            Guvenli akis
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/82 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 shadow-sm backdrop-blur">
+            <BadgeCheck className="h-3.5 w-3.5 text-orange-500" />
+            {statusSummary}
+          </span>
+        </div>
         {isGroup && pinnedMessage ? (
           <button
             type="button"
             onClick={scrollToPinnedMessage}
-            className="relative z-10 m-2 block w-[calc(100%-1rem)] rounded-2xl border border-black/10 bg-white/90 px-3 py-2 text-left shadow-sm backdrop-blur transition hover:bg-white"
+            className="relative z-10 m-2 block w-[calc(100%-1rem)] rounded-[24px] border border-white/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.94)_0%,rgba(255,244,228,0.96)_100%)] px-4 py-3 text-left shadow-[0_18px_40px_rgba(120,67,18,0.10)] backdrop-blur transition hover:bg-white sm:m-3 sm:w-[calc(100%-1.5rem)]"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-600">
+                <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
                   <Pin className="h-3.5 w-3.5" />
                   Sabitlenen Mesaj
                 </p>
-                <p className="mt-1 truncate text-xs font-medium text-zinc-800">{pinnedMessage.senderName}</p>
-                <p className="mt-0.5 line-clamp-2 text-sm text-zinc-700">{parseSystemMessage(pinnedMessage.body) || parseFileMessage(pinnedMessage.body)?.name || pinnedMessage.body}</p>
+                <p className="mt-2 truncate text-xs font-semibold text-orange-700">{pinnedMessage.senderName}</p>
+                <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-700">
+                  {parseSystemMessage(pinnedMessage.body) || parseFileMessage(pinnedMessage.body)?.name || pinnedMessage.body}
+                </p>
               </div>
               {canPin ? (
                 <button
@@ -879,7 +954,12 @@ export function ChatClient({
               const playbackRate = audioPlaybackRates[m.id] || 1;
               const listened = Boolean(listenedAudioIds[m.id]);
               const previousMessage = messages[index - 1];
+              const nextMessage = messages[index + 1];
               const showDateChip = shouldRenderDateChip(m.createdAt, previousMessage?.createdAt);
+              const sameClusterAsPrevious = isSameMessageCluster(m, previousMessage);
+              const sameClusterAsNext = isSameMessageCluster(nextMessage, m);
+              const showSenderLabel = isGroup && !mine && !sameClusterAsPrevious;
+              const bubblePreviewTitle = fileMeta?.name || null;
               if (systemText) {
                 return (
                   <div key={m.id} className="py-1">
@@ -904,30 +984,81 @@ export function ChatClient({
                 <div key={m.id}>
                   {showDateChip ? (
                     <div className="mb-2 flex justify-center">
-                      <div className="rounded-lg bg-white/80 px-3 py-1 text-[11px] font-medium text-zinc-600 shadow-sm">
+                      <div className="rounded-full border border-white/70 bg-white/85 px-3 py-1 text-[11px] font-medium text-zinc-600 shadow-sm backdrop-blur">
                         {formatDateChip(m.createdAt)}
                       </div>
                     </div>
                   ) : null}
-                  <div
-                    ref={(node) => {
-                      messageRefs.current[m.id] = node;
-                    }}
-                    className={`group relative w-fit max-w-[96%] px-2.5 py-1.5 text-[13px] leading-[1.35] shadow-sm sm:max-w-[82%] sm:px-3 sm:text-sm ${mine ? "ml-auto rounded-[12px] rounded-br-[4px] bg-gradient-to-r from-orange-500 to-amber-500 text-white" : "rounded-[12px] rounded-bl-[4px] border border-black/10 bg-white text-zinc-800"} ${pinnedMessage?.id === m.id ? "ring-2 ring-orange-300 ring-offset-2 ring-offset-[#efeae2]" : ""}`}
-                  >
-                  {canPin ? (
-                    <button
-                      type="button"
-                      onClick={() => void updatePinnedMessage(m)}
-                      disabled={pinningId === m.id}
-                      className={`absolute -top-2 ${mine ? "-left-2" : "-right-2"} inline-flex h-6 w-6 items-center justify-center rounded-full border shadow-sm transition sm:h-7 sm:w-7 ${pinnedMessage?.id === m.id ? "border-orange-300 bg-orange-500 text-white" : "border-black/10 bg-white/95 text-zinc-700 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"} disabled:opacity-60`}
-                      aria-label="Mesajı sabitle"
+                  <div className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"} ${sameClusterAsPrevious ? "mt-1" : "mt-3"}`}>
+                    {!mine && isGroup ? (
+                      <div className={`shrink-0 ${sameClusterAsNext ? "mb-1" : "mb-2"}`}>
+                        {showSenderLabel ? (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white/80 text-xs font-semibold text-orange-700 shadow-sm">
+                            {m.sender.name.slice(0, 1).toUpperCase()}
+                          </div>
+                        ) : (
+                          <div className="h-9 w-9" />
+                        )}
+                      </div>
+                    ) : null}
+
+                    <div
+                      ref={(node) => {
+                        messageRefs.current[m.id] = node;
+                      }}
+                      className={`group relative w-fit max-w-[96%] sm:max-w-[82%] ${
+                        mine ? "ml-auto" : ""
+                      } ${pinnedMessage?.id === m.id ? "ring-2 ring-orange-300 ring-offset-2 ring-offset-[#efeae2]" : ""}`}
                     >
-                      <Pin className="h-3.5 w-3.5" />
-                    </button>
-                  ) : null}
-                  {!mine && isGroup ? <p className="mb-1 text-[11px] font-semibold text-orange-700">{m.sender.name}</p> : null}
-                  {fileMeta ? (
+                      {canPin ? (
+                        <button
+                          type="button"
+                          onClick={() => void updatePinnedMessage(m)}
+                          disabled={pinningId === m.id}
+                          className={`absolute -top-2 ${mine ? "-left-2" : "-right-2"} z-20 inline-flex h-6 w-6 items-center justify-center rounded-full border shadow-sm transition sm:h-7 sm:w-7 ${
+                            pinnedMessage?.id === m.id
+                              ? "border-orange-300 bg-orange-500 text-white"
+                              : "border-black/10 bg-white/95 text-zinc-700 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                          } disabled:opacity-60`}
+                          aria-label="Mesajı sabitle"
+                        >
+                          <Pin className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+
+                      {!sameClusterAsNext ? (
+                        <span
+                          aria-hidden="true"
+                          className={`absolute bottom-2 h-3 w-3 rotate-45 rounded-[3px] ${
+                            mine ? "-right-1 bg-orange-500" : "-left-1 border-l border-b border-black/10 bg-white"
+                          }`}
+                        />
+                      ) : null}
+
+                      <div
+                        className={`relative overflow-hidden px-3 py-2.5 text-[13px] leading-[1.45] shadow-sm sm:px-4 sm:text-sm ${
+                          mine
+                            ? `bg-gradient-to-br from-orange-500 via-amber-500 to-[#f3a440] text-white ${
+                                sameClusterAsPrevious ? "rounded-[24px] rounded-tr-[12px]" : "rounded-[24px] rounded-tr-[24px]"
+                              } ${sameClusterAsNext ? "rounded-br-[12px]" : "rounded-br-[8px]"}`
+                            : `border border-white/90 bg-[linear-gradient(135deg,#ffffff_0%,#fffaf3_100%)] text-zinc-800 ${
+                                sameClusterAsPrevious ? "rounded-[24px] rounded-tl-[12px]" : "rounded-[24px] rounded-tl-[24px]"
+                              } ${sameClusterAsNext ? "rounded-bl-[12px]" : "rounded-bl-[8px]"}`
+                        }`}
+                      >
+                        {showSenderLabel ? (
+                          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-orange-700">
+                            {m.sender.name}
+                          </p>
+                        ) : null}
+
+                        {bubblePreviewTitle ? (
+                          <p className={`mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${mine ? "text-orange-100/90" : "text-zinc-500"}`}>
+                            {bubblePreviewTitle}
+                          </p>
+                        ) : null}
+
+                        {fileMeta ? (
                     fileMeta.viewOnce && mine ? (
                       <div className="rounded-xl border border-orange-200/50 bg-white/15 px-3 py-3 text-xs font-medium text-orange-50">
                         Tek bakmalık Fotoğraf gönderildi.
@@ -1053,21 +1184,25 @@ export function ChatClient({
                   ) : (
                     <p className="whitespace-pre-wrap break-words leading-relaxed">{renderMentions(m.body)}</p>
                   )}
-                  {fileMeta?.viewOnce && !fileMeta.consumed ? (
-                    <p className={`mt-0.5 text-[10px] font-semibold uppercase tracking-wide ${mine ? "text-orange-100/90" : "text-orange-600"}`}>Tek bakmalık</p>
-                  ) : null}
-                  <p className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] sm:gap-1.5 sm:text-[11px] ${mine ? "text-orange-100" : "text-zinc-500"}`}>
-                    <span>{formatMessageTime(m.createdAt)}</span>
-                    {mine ? (
-                      pending ? (
-                        <Check className="h-3.5 w-3.5 text-orange-100/95" />
-                      ) : seen ? (
-                        <CheckCheck className="h-3.5 w-3.5 text-orange-950" />
-                      ) : (
-                        <CheckCheck className="h-3.5 w-3.5 text-orange-100/95" />
-                      )
-                    ) : null}
-                  </p>
+                        {fileMeta?.viewOnce && !fileMeta.consumed ? (
+                          <p className={`mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${mine ? "text-orange-100/90" : "text-orange-600"}`}>
+                            Tek bakmalik
+                          </p>
+                        ) : null}
+                        <p className={`mt-2 flex items-center justify-end gap-1 text-[10px] sm:gap-1.5 sm:text-[11px] ${mine ? "text-orange-100" : "text-zinc-500"}`}>
+                          <span>{formatMessageTime(m.createdAt)}</span>
+                          {mine ? (
+                            pending ? (
+                              <Check className="h-3.5 w-3.5 text-orange-100/95" />
+                            ) : seen ? (
+                              <CheckCheck className="h-3.5 w-3.5 text-orange-950" />
+                            ) : (
+                              <CheckCheck className="h-3.5 w-3.5 text-orange-100/95" />
+                            )
+                          ) : null}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
@@ -1078,9 +1213,22 @@ export function ChatClient({
 
       {error ? <p className="mx-2 mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
 
+      {showJumpToLatest ? (
+        <div className="pointer-events-none sticky bottom-[6.75rem] z-20 flex justify-center px-3">
+          <button
+            type="button"
+            onClick={() => scrollToLatest()}
+            className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/70 bg-zinc-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-[0_18px_40px_rgba(17,24,39,0.22)]"
+          >
+            <ChevronDown className="h-4 w-4" />
+            En yeniye don
+          </button>
+        </div>
+      ) : null}
+
       <div
         ref={composerRef}
-        className="sticky bottom-0 z-30 border-t border-black/10 bg-[#f0f2f5] px-2 pt-2 pb-[env(safe-area-inset-bottom)]"
+        className="sticky bottom-0 z-30 border-t border-black/10 bg-[linear-gradient(180deg,rgba(240,242,245,0.72)_0%,rgba(240,242,245,0.98)_24%,#f0f2f5_100%)] px-2 pt-2 pb-[env(safe-area-inset-bottom)] backdrop-blur"
         style={
           {
             bottom: `${composerBottom}px`,
@@ -1135,9 +1283,24 @@ export function ChatClient({
           </div>
         ) : null}
 
+        {!body.trim() && !mentionOpen ? (
+          <div className="mb-2 flex flex-wrap gap-2 px-1">
+            {quickReactionSet.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => setBody((prev) => `${prev}${emoji}`)}
+                className="inline-flex h-8 items-center rounded-full border border-white/80 bg-white/88 px-3 text-sm shadow-sm transition hover:bg-white"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         <form
           onSubmit={send}
-          className="flex items-center gap-1 rounded-[28px] bg-white p-2 shadow-sm"
+          className="flex items-center gap-1 rounded-[30px] border border-white/80 bg-white/92 p-2 shadow-[0_18px_45px_rgba(15,23,42,0.10)]"
           style={{
             transform: keyboardOpen ? "translateY(0)" : "translateY(0)",
             transition: viewportSettling ? "none" : "box-shadow 180ms ease-out, transform 180ms ease-out"
@@ -1170,7 +1333,7 @@ export function ChatClient({
             ref={emojiButtonRef}
             type="button"
             onClick={() => setEmojiOpen((prev) => !prev)}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-black/[0.03] hover:text-zinc-900 sm:h-9 sm:w-9"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff7ec] text-zinc-500 transition hover:bg-[#ffeed5] hover:text-zinc-900 sm:h-10 sm:w-10"
             aria-label="Emoji"
           >
             <Smile className="h-4.5 w-4.5" />
@@ -1183,13 +1346,13 @@ export function ChatClient({
           onChange={(e) => setBody(e.target.value)}
           onFocus={focusComposer}
           placeholder={`${peerName} için bir mesaj yaz...`}
-          className="h-9 min-w-0 border-0 bg-transparent px-1 text-[13px] shadow-none focus-visible:ring-0 sm:h-10 sm:text-sm"
+          className="h-9 min-w-0 border-0 bg-transparent px-2 text-[13px] shadow-none focus-visible:ring-0 sm:h-10 sm:text-sm"
         />
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={sending || uploadingFile}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-black/[0.03] hover:text-zinc-900 disabled:opacity-50 sm:h-9 sm:w-9"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff7ec] text-zinc-500 transition hover:bg-[#ffeed5] hover:text-zinc-900 disabled:opacity-50 sm:h-10 sm:w-10"
           aria-label="Ek dosya"
         >
           <Paperclip className="h-4.5 w-4.5" />
@@ -1198,13 +1361,13 @@ export function ChatClient({
           type="button"
           onClick={() => void openCamera()}
           disabled={sending || uploadingFile}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-black/[0.03] hover:text-zinc-900 disabled:opacity-50 sm:h-9 sm:w-9"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff7ec] text-zinc-500 transition hover:bg-[#ffeed5] hover:text-zinc-900 disabled:opacity-50 sm:h-10 sm:w-10"
           aria-label="Kamera"
         >
           <Camera className="h-4.5 w-4.5" />
         </button>
 
-        <Button type="submit" disabled={sending || uploadingFile || !body.trim()} className="h-9 shrink-0 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 px-3 text-white hover:from-orange-600 hover:to-amber-600 sm:h-10 sm:px-4">
+        <Button type="submit" disabled={sending || uploadingFile || !body.trim()} className="h-10 shrink-0 rounded-full bg-gradient-to-r from-orange-500 via-amber-500 to-[#f3a440] px-[14px] text-white shadow-sm hover:from-orange-600 hover:to-amber-600 sm:h-11 sm:px-[18px]">
           <SendHorizonal className="h-4 w-4" />
         </Button>
       </form>

@@ -19,6 +19,9 @@ export type ConversationListItem = {
   isPinned?: boolean;
   image?: string | null;
   hasMention?: boolean;
+  isUnread?: boolean;
+  memberCount?: number;
+  lastSenderName?: string | null;
 };
 
 function isImageFile(name?: string | null, url?: string | null) {
@@ -136,6 +139,12 @@ export async function getConversationListItems(userId: string) {
         const lastCreatedAt = last?.createdAt ? new Date(last.createdAt) : null;
         const peerSeenAt = isGroup ? null : conversation.buyerId === userId ? conversation.lastSeenBySellerAt : conversation.lastSeenByBuyerAt;
         const mySeenAt = isGroup ? (conversation.lastSeenByUser as Record<string, string> | null)?.[userId] || null : null;
+        const isUnread = Boolean(
+          last &&
+          lastCreatedAt &&
+          last.senderId !== userId &&
+          (!mySeenAt || lastCreatedAt.getTime() > new Date(mySeenAt).getTime())
+        );
 
         return {
           id: conversation.id,
@@ -153,6 +162,9 @@ export async function getConversationListItems(userId: string) {
           isGroup,
           isPinned: Boolean(conversation.pinnedMessageId),
           image: conversation.groupImage || null,
+          isUnread,
+          memberCount: members.length || (isGroup ? 0 : 2),
+          lastSenderName: last?.senderName || null,
           hasMention:
             Boolean(
               isGroup &&
