@@ -240,6 +240,7 @@ export function UnifiedNeighborhoodMap({
 
         let lat = typeof item.locationLat === "number" ? item.locationLat : null;
         let lng = typeof item.locationLng === "number" ? item.locationLng : null;
+        let isApproximateLocation = false;
 
         if ((lat === null || lng === null) && item.locationText?.trim()) {
           const key = item.locationText.trim().toLowerCase();
@@ -248,23 +249,34 @@ export function UnifiedNeighborhoodMap({
             geocodeCache.set(key, point);
           }
           const cached = geocodeCache.get(key) || null;
-          lat = cached?.lat ?? null;
-          lng = cached?.lng ?? null;
+          if (cached) {
+            lat = cached.lat;
+            lng = cached.lng;
+          } else {
+            // Geocode başarısız olursa mahalle merkezini kullan (yaklaşık konum)
+            isApproximateLocation = true;
+            if (hasPinnedNeighborhoodCenter) {
+              lat = defaultCenter!.lat;
+              lng = defaultCenter!.lng;
+            }
+          }
         }
 
         if (lat === null || lng === null) continue;
         if (
           hasPinnedNeighborhoodCenter &&
           typeof maxDistanceKm === "number" &&
+          !isApproximateLocation && // Yaklaşık konumlar için mesafe kontrolü yapma
           distanceKm(lat, lng, defaultCenter!.lat, defaultCenter!.lng) > maxDistanceKm
         ) {
           continue;
         }
 
         const palette = paletteFor(item);
+        const markerColor = isApproximateLocation ? "#6b7280" : palette.marker; // Yaklaşık konumlar için gri renk
         const icon = L.divIcon({
           className: "",
-          html: `<div style="width:14px;height:14px;border-radıus:9999px;background:${palette.marker};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
+          html: `<div style="width:14px;height:14px;border-radius:9999px;background:${markerColor};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
           iconSize: [14, 14],
           iconAnchor: [7, 7]
         });
