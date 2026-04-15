@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { prisma } from "@/lib/prisma";
-import { reverseGeocodeLocation } from "@/lib/geocode";
+import { reverseGeocodeLocation, type ReverseGeocodeDetails } from "@/lib/geocode";
 
 type NeighborhoodRecord = {
   id: string;
@@ -48,7 +48,11 @@ function includesNormalized(source?: string | null, target?: string | null) {
   return a.includes(b) || b.includes(a);
 }
 
-export async function findNeighborhoodByLocation(lat: number, lng: number) {
+export async function findNeighborhoodByLocation(
+  lat: number,
+  lng: number,
+  reverseDetails?: ReverseGeocodeDetails | null
+) {
   const all = (await prisma.neighborhood.findMany()) as NeighborhoodRecord[];
   const ranked = all
     .map((n) => ({
@@ -57,7 +61,7 @@ export async function findNeighborhoodByLocation(lat: number, lng: number) {
     }))
     .sort((a, b) => a.distance - b.distance);
 
-  const reverse = await reverseGeocodeLocation(lat, lng);
+  const reverse = typeof reverseDetails === "undefined" ? await reverseGeocodeLocation(lat, lng) : reverseDetails;
   const inRadius = ranked.filter((item) => item.distance <= getEffectiveNeighborhoodRadiusKm(item.radiusKm));
   if (inRadius.length === 0) {
     return null;

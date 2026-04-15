@@ -9,8 +9,8 @@ import { findNeighborhoodByLocation } from "@/lib/neighborhood-geo";
 import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
-  lat: z.number().finite().min(-90).max(90),
-  lng: z.number().finite().min(-180).max(180)
+  lat: z.coerce.number().finite().min(-90).max(90),
+  lng: z.coerce.number().finite().min(-180).max(180)
 });
 
 function normalizePart(value?: string | null) {
@@ -53,8 +53,8 @@ function buildAutoNeighborhoodId(city: string, district: string, name: string) {
 }
 
 async function resolveNeighborhood(lat: number, lng: number) {
-  const matchedNeighborhood = await findNeighborhoodByLocation(lat, lng);
   const reverse = await reverseGeocodeLocation(lat, lng);
+  const matchedNeighborhood = await findNeighborhoodByLocation(lat, lng, reverse);
 
   if (matchedNeighborhood) {
     return {
