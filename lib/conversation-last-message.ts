@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { db } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 type LatestMessageRow = {
   id: string;
@@ -13,32 +13,42 @@ type LatestMessageRow = {
 export async function getLatestMessagesByConversationIds(conversationIds: string[]) {
   if (!conversationIds.length) return new Map<string, LatestMessageRow>();
 
-  const placeholders = conversationIds.map(() => "?").join(", ");
-  const sql = `
-    SELECT ranked."id",
-           ranked."conversationId",
-           ranked."senderId",
-           ranked."body",
-           ranked."createdAt",
-           sender."name" as "senderName"
-    FROM (
-      SELECT m.*,
-             ROW_NUMBER() OVER (PARTITION BY m."conversationId" ORDER BY m."createdAt" DESC) AS rn
-      FROM "Message" m
-      WHERE m."conversationId" IN (${placeholders})
-    ) ranked
-    LEFT JOIN "User" sender ON sender."id" = ranked."senderId"
-    WHERE ranked.rn = 1
-  `;
-
-  const rows = (await db.$queryRawUnsafe(sql, ...conversationIds)) as LatestMessageRow[];
-  return new Map(
-    rows.map((row) => [
-      row.conversationId,
-      {
-        ...row,
-        createdAt: row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt)
+  const rows = (await prisma.message.findMany({
+    where: {
+      conversationId: {
+        in: conversationIds
       }
-    ])
-  );
+    },
+    include: {
+      sender: true
+    },
+    orderBy: [{ createdAt: "desc" }]
+  })) as Array<
+    LatestMessageRow & {
+      sender?: {
+        name?: string | null;
+      } | null;
+    }
+  >;
+
+  const latestByConversation = new Map<string, LatestMessageRow>();
+
+  for (const row of rows) {
+    if (latestByConversation.has(row.conversationId)) continue;
+
+    latestByConversation.set(row.conversationId, {
+      id: row.id,
+      conversationId: row.conversationId,
+      senderId: row.senderId,
+      body: row.body,
+      createdAt: row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt),
+      senderName: row.sender?.name || row.senderName || null
+    });
+
+    if (latestByConversation.size === conversationIds.length) {
+      break;
+    }
+  }
+
+  return latestByConversation;
 }

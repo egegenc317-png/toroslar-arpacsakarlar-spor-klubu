@@ -1,0 +1,23 @@
+﻿:root {
+  --color-orange: #FF8C00;
+  --color-navy: #1a2d5c;
+  --color-turquoise: #20B2AA;
+  --color-light: #f5f5f5;
+  --color-dark: #333;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+html {
+  scroll-behavior: smooth;
+}

@@ -138,7 +138,11 @@ export async function getConversationListItems(userId: string) {
         const preview = formatPreview(last?.body || "Sohbeti aç ve yazışmaya başla");
         const lastCreatedAt = last?.createdAt ? new Date(last.createdAt) : null;
         const peerSeenAt = isGroup ? null : conversation.buyerId === userId ? conversation.lastSeenBySellerAt : conversation.lastSeenByBuyerAt;
-        const mySeenAt = isGroup ? (conversation.lastSeenByUser as Record<string, string> | null)?.[userId] || null : null;
+        const mySeenAt = isGroup
+          ? (conversation.lastSeenByUser as Record<string, string> | null)?.[userId] || null
+          : conversation.buyerId === userId
+            ? conversation.lastSeenByBuyerAt
+            : conversation.lastSeenBySellerAt;
         const isUnread = Boolean(
           last &&
           lastCreatedAt &&

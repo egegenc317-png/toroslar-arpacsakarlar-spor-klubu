@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write .",
+    "delete:amator-klub": "powershell -ExecutionPolicy Bypass -File scripts/delete-amator-klub.ps1",
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "ts-node --compiler-options {\"module\":\"CommonJS\"} scripts/smoke-test.ts",

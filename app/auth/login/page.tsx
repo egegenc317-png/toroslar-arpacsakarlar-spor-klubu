@@ -20,13 +20,30 @@ export default function LoginPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const result = await signIn("credentials", { email: identifier, password, redirect: false });
-    if (result?.error) {
-      setError("Giriş başarısız.");
+    const trimmedIdentifier = identifier.trim();
+    if (!trimmedIdentifier) {
+      setError("E-posta veya kullanıcı adı gir.");
       return;
     }
-    router.push("/post-login");
-    router.refresh();
+
+    try {
+      const result = await signIn("credentials", {
+        email: trimmedIdentifier,
+        password,
+        redirect: false,
+        callbackUrl: "/post-login"
+      });
+
+      if (!result || result.error) {
+        setError(result?.error ? result.error : "Giriş başarısız.");
+        return;
+      }
+
+      router.push(result.url || "/post-login");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Giriş sırasında bir hata oluştu.");
+    }
   };
 
   return (
