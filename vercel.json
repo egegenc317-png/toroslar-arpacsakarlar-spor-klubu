@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd amator-klub-site && npm run build",
+  "installCommand": "cd amator-klub-site && npm install",
+  "framework": "nextjs",
+  "outputDirectory": "amator-klub-site/.next"
+}
