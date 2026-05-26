@@ -30,8 +30,8 @@ export default function Home() {
       <header style={{ backgroundColor: 'var(--color-navy)', color: 'white', padding: '18px 0', boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)' }}>
         <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' }}>
-              <img src="/logo.png" alt="Toroslar Arpaçsakarlar Spor Kulübü Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <div style={{ width: '56px', height: '56px', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'white', fontSize: '32px' }}>
+              🛡️
             </div>
             <div>
               <p style={{ margin: 0, fontSize: '14px', letterSpacing: '1.2px', textTransform: 'uppercase', opacity: 0.88 }}>Toroslar Arpaçsakarlar</p>
