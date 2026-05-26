@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Toroslar Arpaçsakarlar Spor Kulübü',
-  description: 'Toroslar Arpaçsakarlar Spor Kulübü - Mersin\'den Amatör Futbol Kulübü. 1990 yılından bu yana gençlere spor yolu açıyoruz.',
+  description: 'Toroslar Arpaçsakarlar Spor Kulübü - Mersin\'den Amatör Futbol Kulübü. 1983 yılından bu yana gençlere spor yolu açıyoruz.',
   keywords: 'futbol, spor, Mersin, Toroslar, amatör lig, gençlik',
 }
 

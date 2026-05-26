@@ -10,14 +10,13 @@ const NAV_ITEMS = [
 ]
 
 const TEAM_SECTIONS = [
-  { title: 'U20', age: '2004-2006 Doğumlu', description: 'Profesyonel seviyeye hazırlık ve disiplinli antrenmanlar.' },
   { title: 'U13', age: '2011-2013 Doğumlu', description: 'Temel teknik, takım oyunu ve saha zekası geliştirme.' },
   { title: 'U12', age: '2012-2014 Doğumlu', description: 'Futbolun temelleri ve güçlü karakter inşası.' },
   { title: 'U11', age: '2013-2015 Doğumlu', description: 'Oyun sevgisi, sosyalleşme ve disiplinle eğitim.' },
 ]
 
 const STATS = [
-  { value: '1990', label: 'Kuruluş Yılı' },
+  { value: '1983', label: 'Kuruluş Yılı' },
   { value: '010617', label: 'TFF Kulüp Kodu' },
   { value: 'Mersin 1. Amatör Lig', label: 'Lig' },
   { value: '@arpacsakarlarsporklubu', label: 'Instagram' },
@@ -75,7 +74,7 @@ export default function Home() {
                   Toroslar Arpaçsakarlar Spor Kulübü
                 </h2>
                 <p style={{ margin: 0, fontSize: '18px', lineHeight: '1.9', maxWidth: '760px', color: '#333' }}>
-                  1990 yılında kurulan kulübümüz, Mersin Toroslar merkezinde amatör liglerde mücadele ederken aynı zamanda altyapıyı güçlendiriyor.
+                  1983 yılında kurulan kulübümüz, Mersin Toroslar merkezinde amatör liglerde mücadele ederken aynı zamanda altyapıyı güçlendiriyor.
                   Amacımız; gençleri futbolla tanıştırmak, onları suç ortamından uzak tutmak ve topluma kazandırmak.
                 </p>
               </div>
@@ -84,7 +83,7 @@ export default function Home() {
                 <p style={{ margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1.4px', opacity: 0.9 }}>Kulüp Bilgileri</p>
                 <h3 style={{ margin: '18px 0 20px', fontSize: '28px' }}>Mersin Toroslar</h3>
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0, lineHeight: '2' }}>
-                  <li><strong>Kuruluş:</strong> 1990</li>
+                  <li><strong>Kuruluş:</strong> 1983</li>
                   <li><strong>Lig:</strong> Mersin 1. Amatör Lig</li>
                   <li><strong>TFF Kodu:</strong> 010617</li>
                   <li><strong>Instagram:</strong> @arpacsakarlarsporklubu</li>
@@ -125,7 +124,7 @@ export default function Home() {
               <div style={{ backgroundColor: 'white', borderRadius: '24px', padding: '40px', boxShadow: '0 16px 42px rgba(0, 0, 0, 0.08)' }}>
                 <h2 style={{ color: 'var(--color-navy)', fontSize: '42px', margin: '0 0 18px' }}>Hikayemiz</h2>
                 <p style={{ color: '#4d4d4d', lineHeight: '1.9', marginBottom: '20px' }}>
-                  1990 yılında Toroslar&apos;da kurulan Toroslar Arpaçsakarlar Spor Kulübü, amatör ruhla başlayıp her zaman gençlerin yanında oldu. A takımı 2019-2020 sezonunda Süper Amatör Lig&apos;e kadar yükseldi ve sonra tamamen akademiye odaklanarak küçük yaş gruplarına yatırım yaptı.
+                  1983 yılında Toroslar&apos;da kurulan Toroslar Arpaçsakarlar Spor Kulübü, amatör ruhla başlayıp her zaman gençlerin yanında oldu. A takımı 2019-2020 sezonunda Süper Amatör Lig&apos;e kadar yükseldi ve sonra tamamen akademiye odaklanarak küçük yaş gruplarına yatırım yaptı.
                 </p>
                 <p style={{ color: '#4d4d4d', lineHeight: '1.9' }}>
                   Şu anda en büyük yaşımız 2013, en küçük yaşımız 2020 doğumlu sporcularımızla birlikte küçük liglerde mücadele ediyoruz. Hedefimiz; gençleri keşfetmek, onları Türk futboluna kazandırmak ve sporu bir yaşam biçimi haline getirmektir.
@@ -154,7 +153,7 @@ export default function Home() {
               <div style={{ backgroundColor: 'white', borderRadius: '24px', padding: '32px', boxShadow: '0 16px 42px rgba(0, 0, 0, 0.08)' }}>
                 <h3 style={{ color: 'var(--color-navy)', marginBottom: '14px' }}>Yönetim</h3>
                 <p style={{ color: '#4d4d4d', lineHeight: '1.9' }}>
-                  Kulüp başkanlığını güncel olarak Naci Genç yürütüyor. Bazen farklı kaynaklarda Adem Yaşar ismi de geçmekte olup, kulübün yönetim yapısı toplulukla birlikte şekilleniyor.
+                  Kulüp başkanlığını güncel olarak sadece Naci Genç yürütmektedir.
                 </p>
               </div>
             </div>
@@ -208,7 +207,7 @@ export default function Home() {
             <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '40px', boxShadow: '0 16px 42px rgba(0, 0, 0, 0.08)' }}>
               <h3 style={{ color: 'var(--color-navy)', marginTop: 0 }}>Kulübe Nasıl Katılabilirsiniz?</h3>
               <p style={{ color: '#4d4d4d', lineHeight: '1.9' }}>
-                Kulübümüzün altyapı seçmelerini ve akademi başvurularını Instagram üzerinden takip edebilirsiniz. Mevcut yaş gruplarımız U11, U12, U13 ve U20 seviyelerinde çalışmalar yapmaktadır.
+                Kulübümüzün altyapı seçmelerini ve akademi başvurularını Instagram üzerinden takip edebilirsiniz. Mevcut yaş gruplarımız U11, U12 ve U13 seviyelerinde çalışmalar yapmaktadır.
               </p>
             </div>
           </section>
@@ -217,7 +216,7 @@ export default function Home() {
 
       <footer style={{ backgroundColor: 'var(--color-navy)', color: 'white', padding: '32px 24px', textAlign: 'center' }}>
         <p style={{ margin: '0 0 8px', fontWeight: 600 }}>Toroslar Arpaçsakarlar Spor Kulübü</p>
-        <p style={{ margin: 0, color: 'rgba(255,255,255,0.72)' }}>1990&apos;dan beri gençlere spor yoluyla gelecek sunuyoruz.</p>
+        <p style={{ margin: 0, color: 'rgba(255,255,255,0.72)' }}>1983&apos;ten beri gençlere spor yoluyla gelecek sunuyoruz.</p>
       </footer>
     </div>
   )
